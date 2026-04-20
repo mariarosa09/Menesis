@@ -1,8 +1,16 @@
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:menesis_app/auth/entities/app_user.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:menesis_app/auth/repo/auth_repo.dart';
 
 abstract class AuthState {}
+
+class NeedVerification extends AuthState {
+  final AppUser user;
+  NeedVerification(this.user);
+}
 
 class AuthInitial extends AuthState {}
 
@@ -64,7 +72,9 @@ class AuthCubit extends Cubit<AuthState> {
       final user = await authRepo.registerWithEmailPassword(fname, mi, lname, email, password);
       if (user!=null) {
         _currentUser = user;
-        emit(Authenticated(user));
+        emit(NeedVerification(user));
+
+        _startVerificationCheck();
       }
       else {
         emit(Unauthenticated());
@@ -74,6 +84,18 @@ class AuthCubit extends Cubit<AuthState> {
       emit(AuthError(e.toString()));
       emit(Unauthenticated());
     }
+  }
+
+  void _startVerificationCheck() {
+    Timer.periodic(const Duration(seconds: 3), (timer) async {
+      await FirebaseAuth.instance.currentUser?.reload();
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user?.emailVerified ?? false) {
+        timer.cancel();
+        emit(Authenticated(AppUser(uid: user!.uid, email: user.email!)));
+      }
+    });
   }
 
   Future<void> logout() async {
@@ -103,4 +125,14 @@ class AuthCubit extends Cubit<AuthState> {
       emit(Unauthenticated());
     }
   }
+
+  /*Future<String> sendVerification() async {
+    try {
+      final message = await authRepo.sendEmailVerification();
+      return message;
+    }
+    catch (e) {
+      return e.toString();
+    }
+  }*/
 }

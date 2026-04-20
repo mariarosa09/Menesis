@@ -133,7 +133,12 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     final authCubit = context.read<AuthCubit>();
 
     authCubit.register(fname, mi, lname, email, password);
+    /*final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      
+    }*/
   }
+  
 
 // ============================================================
   // build() — Main UI
@@ -153,7 +158,52 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             MaterialPageRoute(builder: (_) => const PeriodSetupScreen())
           );
         }
+        else if (state is NeedVerification) {
+          showDialog(
+            context: context, 
+            builder: (context) {
+              return AlertDialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                backgroundColor: const Color(0xFFFFFBFC),
+                title: const Text(
+                  "Register",
+                  style: TextStyle(
+                    fontFamily: 'CormorantGaramond',
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF3A1F3D),
+                    ),
+                  ),
+                  content: Text(
+                    "Account verification sent on your email!\nPlease check your inbox.",
+                    style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.black54,
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(); 
+                      emailController.clear();
+                    },
+                    child: const Text(
+                      "OK",
+                      style: TextStyle(
+                        color: Colors.black45,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
+          );
+        }
         else if (state is Unauthenticated) {
+          
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Register failed. Please try again!')),
           );
@@ -339,7 +389,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                                 if(state is Authenticated) {
                                   Navigator.pushReplacement(
                                     context,
-                                    MaterialPageRoute(builder: (_) => HomePage()),
+                                    MaterialPageRoute(builder: (_) => PeriodSetupScreen()),
                                   );
                                 }
                           // TODO: [EDIT] I-call dito ang registration logic

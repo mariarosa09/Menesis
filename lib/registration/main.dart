@@ -7,10 +7,10 @@ import 'createAcc.dart';
 import 'package:menesis_app/otp.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:menesis_app/firebase_options.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:menesis_app/app_navigation/tab2/homepage.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
 
-//TODO: i-connect sa homepage.dart kapag registered ang acc or new acc
 // ============================================================
 // MAIN FUNCTION
 // Purpose: Sinisiguro na naka-initialize ang Flutter bindings
@@ -76,7 +76,7 @@ class _LoginScreenState extends State<LoginScreen> {
   //          nag-iingat ng login attempt count + cooldown.
   // --------------------------------------------------------
   bool obscure = true;
-  int _loginAttempts = 0;
+  int _loginAttempts = 5;
   bool _isCoolingDown = false;
   String? _emailError;     // Inline error message for email/username field
   String? _passwordError;  // Inline error message for password field
@@ -89,6 +89,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
 
+  late final authCubit = context.read<AuthCubit>();
   // --------------------------------------------------------
   // DISPOSE METHOD
   // Purpose: Ini-dispose ang mga controller para maiwasan
@@ -107,7 +108,7 @@ class _LoginScreenState extends State<LoginScreen> {
   //          empty fields, cooldown status, at susunod na
   //          icoconnect sa Firebase authentication.
   // --------------------------------------------------------
-  void login() {
+  void login() async {
     // Clear previous inline errors before each attempt
     setState(() {
       _emailError = null;
@@ -127,34 +128,104 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     // Block login if cooling down from too many failed attempts
-    if (_isCoolingDown) {
+    void coolDown () {
+      
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Too many attempts. Please try again later."),
           backgroundColor: Color(0xFFB56A7E),
         ),
       );
+      int totalSeconds = 300;
+      Timer.periodic(Duration(seconds: 1), (timer) {
+        setState(() {
+          int minutes = totalSeconds ~/ 60; // Integer division for minutes
+          int seconds = totalSeconds % 60;  // Remainder for seconds
+
+          String m = minutes.toString().padLeft(2, '0');
+          String s = seconds.toString().padLeft(2, '0');
+          _passwordError = "Time remaining: $m:$s";
+          totalSeconds--;
+
+          if (totalSeconds < 0) {
+            timer.cancel(); // Stops the timer
+            _passwordError = "You can now try again";
+            _isCoolingDown = false;
+            _loginAttempts = 5;
+          }
+        });
+      });
       return;
     }
-
-    final authCubit = context.read<AuthCubit>();
+    
     authCubit.login(email, password);
+    final user = FirebaseAuth.instance.currentUser;
+    User? previousUser = user;
+    if (previousUser != user) {
+      _isCoolingDown = false;
+      _loginAttempts = 5;
+    }
+    if (user == null) {
+      try {
+        await FirebaseAuth.instance.signInWithEmailAndPassword(email: email, password: password);
+      }
+      on FirebaseAuthException catch (e) {
+        if (e.code == "invalid-email") {
+          setState(() {
+            _emailError = "Invalid email format";
+          });
+        }
+        else if (e.code == "user-not-found") {
+          setState(() {
+            _emailError = "User not found";
+          });
+        }
+        else if (e.code == "wrong-password") {
+          _loginAttempts -= 1;
+          if (_loginAttempts == -1) {
+            _isCoolingDown = true;
+          }
+          if(_loginAttempts==-1) {
+            coolDown();
+          }
+          else if (_loginAttempts <= 3) {
+            setState(() {
+              _passwordError = "Incorrect Password! $_loginAttempts attempts left.";
+            });
+          }
+          else {
+            setState(() {
+              _passwordError = "Incorrect Password!";
+            });
+          }
+          passwordController.clear();
+        }
+        else if (e.code == "too-many-requests") {
+          ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("We have blocked all requests from this device due to unusual activity. Try again later."),
+            backgroundColor: Color(0xFFB56A7E),
+          ),
+        );
+        }
+        else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Login failed: ${e.code}"),
+              backgroundColor: Color(0xFFB56A7E),
+            ),
+          );
+        }
+      }
+    }
+
+    
     
 
     // TODO: (EDIT) Ikonekta ang login sa Firebase Authentication
-    // - Gamitin ang FirebaseAuth.instance.signInWithEmailAndPassword()
-    // - Kung successful: i-redirect sa HomePage
-    // - Kung hindi existing ang account: mag-display ng inline error sa ibaba ng email field
-    //   na "There's no existing account with that email/username! Please try again."
-    //   → I-set ang _emailError para ma-display sa ibaba ng email field
-    // - Kung mali ang password: dagdagan ang _loginAttempts counter,
-    //   mag-display ng inline error "Incorrect Password!" sa ibaba ng password field
-    //   → I-set ang _passwordError para ma-display sa ibaba ng password field
-    // - Kung naabot na ang 5 attempts: i-set ang _isCoolingDown = true,
-    //   mag-trigger ng 5-minute timer bago i-reset ang _loginAttempts at _isCoolingDown,
     //   at mag-send ng email notification sa user na may nag-try mag-access ng kanilang account
     //   (gamitin ang Firebase Email trigger o Cloud Function para dito)
-    //
+    //- New user reset counter and cooldown
     // The code should be placed here
 
   }
@@ -164,7 +235,7 @@ class _LoginScreenState extends State<LoginScreen> {
   // Purpose: Inina-navigate ang user papunta sa OTP screen
   //          para sa password reset, with email validation.
   // --------------------------------------------------------
-  void _handleForgotPassword() {
+  void _handleForgotPassword() async {
     FocusScope.of(context).unfocus();
 
     if (emailController.text.trim().isEmpty) {
@@ -173,14 +244,76 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       return;
     }
+    
+    String message = await authCubit.forgotPassword(emailController.text.trim());
 
-    Navigator.push(
+    if (message == "success") {
+      showDialog(
+        context: context, 
+        builder: (context) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+            ),
+            backgroundColor: const Color(0xFFFFFBFC),
+            title: const Text(
+              "Forgot Password",
+              style: TextStyle(
+                fontFamily: 'CormorantGaramond',
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF3A1F3D),
+                ),
+              ),
+              content: Text(
+                "Password reset email sent!\nPlease check your inbox.",
+                style: TextStyle(
+                fontSize: 14,
+                color: Colors.black54,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop(); 
+                  emailController.clear();
+                },
+                child: const Text(
+                  "OK",
+                  style: TextStyle(
+                    color: Colors.black45,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+      );
+    }
+    else if (message == "invalid-email") {
+      setState(() {
+        _emailError = "Invalid email format";
+      });
+    }
+    else if (message == "user-not-found") {
+      setState(() {
+        _emailError = "No existing account. Try again.";
+      });
+    }
+    else {
+      setState(() {
+        _emailError = "Error occurred. Please try again.";
+      });
+    }
+  }
+
+    /*Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => OtpVerificationScreen(email: emailController.text.trim()),
       ),
-    );
-  }
+    );*/
 
   // --------------------------------------------------------
   // BUILD METHOD
@@ -195,11 +328,6 @@ class _LoginScreenState extends State<LoginScreen> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const HomePage())
-          );
-        }
-        else if (state is Unauthenticated) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Login failed. Please try again!')),
           );
         }
       },
@@ -369,7 +497,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         width: double.infinity,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFB56A7E),
+                            backgroundColor: _isCoolingDown ?
+                            Colors.grey.shade400
+                            : Color(0xFFB56A7E),
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 18),
                             elevation: 3,
@@ -377,7 +507,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               borderRadius: BorderRadius.circular(20),
                             ),
                           ),
-                          onPressed: login,
+                          onPressed: !_isCoolingDown ? login : null,
                           child: const Text("Sign in"),
                         ),
                       ),
@@ -446,7 +576,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Image.asset('assets/images/logo.png', height: 80),
                 ),
               ),
-
             ],
           ),
         ),

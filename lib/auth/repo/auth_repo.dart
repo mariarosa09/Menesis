@@ -8,7 +8,7 @@ abstract class AutoRepo {
   Future<AppUser?> getCurrentUser();
   Future<String> sendPasswordResetEmail(String email);
   Future<void> deleteAccount();
-  //Future<void> sendEmailVerification();
+  Future<void> sendEmailVerification();
 }
 
 class FirebaseAuthRepo implements AutoRepo {
@@ -72,11 +72,12 @@ class FirebaseAuthRepo implements AutoRepo {
   Future<AppUser?> registerWithEmailPassword(String fname, String mi, String lname, String email, String password) async {
     try {
       UserCredential userCredential = await firebaseAuth.createUserWithEmailAndPassword(email: email, password: password);
+      await sendEmailVerification();
       AppUser user = AppUser(uid: userCredential.user!.uid, email: email);
       return user;
     }
     catch (e) {
-      throw Exception('Create account failed: $e');
+      throw Exception('Registration failed: $e');
     }
   }
 
@@ -84,14 +85,28 @@ class FirebaseAuthRepo implements AutoRepo {
   Future<String> sendPasswordResetEmail(String email) async {
     try {
       await firebaseAuth.sendPasswordResetEmail(email: email);
-      return "Password reset email! Check you inbox";
+      return "success";
+    }
+    on FirebaseAuthException catch (e) {
+      return e.code;
     }
     catch (e) {
-      return "An error occured";
+      return "error";
     }
   }
 
-  /*Future<void> sendEmailVerification() {
-    _auth.currentUser
-  }*/
+  @override
+  Future<void> sendEmailVerification() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await user.sendEmailVerification();
+        print("Success email sent");
+      } else {
+        throw Exception("No user found to verify.");
+      }
+    } catch (e) { 
+      throw Exception("Failed to send verification email: $e"); 
+    }
+  }
 }
