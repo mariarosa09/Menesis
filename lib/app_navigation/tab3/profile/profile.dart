@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:menesis_app/auth/presentation/auth_cubit.dart';
@@ -40,6 +42,43 @@ class MyApp extends StatelessWidget {
 /// =============================================
 class ManageProfileScreen extends StatelessWidget {
   const ManageProfileScreen({super.key});
+
+  Future<String?> getUserName() async {
+    String? authUid = FirebaseAuth.instance.currentUser?.uid;
+    DocumentSnapshot userName = await FirebaseFirestore.instance.collection('users').doc(authUid).get();
+    if (userName['first name'] == "" && userName['middle initial'] == "" && userName['last name'] == "") {
+      return userName['username'];
+    }
+    else if (userName['middle initial'] == "") {
+      String name = "${userName['first name']} ${userName['last name']}";
+      return name;
+    }
+    else {
+      String name = "${userName['first name']} ${userName['middle initial']}. ${userName['last name']}";
+      return name;
+    }
+  }
+
+  Future<String?> getUserEmail() async {
+    String? authUid = FirebaseAuth.instance.currentUser?.uid;
+    DocumentSnapshot userEmail = await FirebaseFirestore.instance.collection('users').doc(authUid).get();
+    
+    return userEmail['email'];
+  }
+
+  Future<String?> getPeriodLength() async {
+    String? authUid = FirebaseAuth.instance.currentUser?.uid;
+    DocumentSnapshot userPeriod = await FirebaseFirestore.instance.collection('periods').doc(authUid).get();
+    
+    return userPeriod['period length'].toString();
+  }
+
+  Future<String?> getCycleLength() async {
+    String? authUid = FirebaseAuth.instance.currentUser?.uid;
+    DocumentSnapshot userCycle = await FirebaseFirestore.instance.collection('periods').doc(authUid).get();
+    
+    return userCycle['cycle length'].toString();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -162,13 +201,27 @@ class ManageProfileScreen extends StatelessWidget {
                           // Example format: "${user.firstName} ${user.middleInitial}. ${user.surname}"
                           // The code should be placed here
 
-                          const Text(
-                            "username",
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF3A1F3D),
-                            ),
+                          FutureBuilder(future:  getUserName(), 
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.done) {
+                                return Text(snapshot.data ?? "No username found",
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF3A1F3D),
+                                  ),
+                                );
+                              }
+                              else {
+                                return Text(snapshot.data ?? "Loading!",
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF3A1F3D),
+                                  ),
+                                );
+                              }
+                            }
                           ),
 
                           const SizedBox(height: 5),
@@ -184,12 +237,27 @@ class ManageProfileScreen extends StatelessWidget {
                           // o mula sa authentication provider (e.g., Firebase Auth currentUser).
                           // The code should be placed here
 
-                          const Text(
-                            "user@email.com",
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.black45,
-                            ),
+                          FutureBuilder(future:  getUserEmail(), 
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.done) {
+                                return Text(
+                                  snapshot.data ?? "No email found!",
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.black45,
+                                  ),
+                                );
+                              }
+                              else {
+                                return Text(
+                                  "Loading!",
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.black45,
+                                  ),
+                                );
+                              }
+                            }
                           ),
 
                           const SizedBox(height: 18),
@@ -258,11 +326,32 @@ class ManageProfileScreen extends StatelessWidget {
 
                   _sectionCard(
                     title: "Menstrual Summary",
-                    child: const Column(
+                    child: Column(
                       children: [
-                        _infoRow("Period Length", "--"),
+                        FutureBuilder(
+                          future: getPeriodLength(),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.done) {
+                              return _infoRow("Period Length", snapshot.data ?? "--");
+                            } 
+                            else {
+                              return _infoRow("Period Length", "--");
+                            }
+                          },
+                        ),
+                        
                         AppDivider(),
-                        _infoRow("Cycle Length", "--"),
+                        FutureBuilder(
+                          future: getCycleLength(),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.done) {
+                              return _infoRow("Cycle Length", snapshot.data ?? "--");
+                            } 
+                            else {
+                              return _infoRow("Cycle Length", "--");
+                            }
+                          },
+                        ),
                       ],
                     ),
                   ),

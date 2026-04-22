@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:menesis_app/auth/presentation/auth_cubit.dart';
 import 'package:menesis_app/auth/repo/auth_repo.dart';
+import 'package:menesis_app/registration/initialLength.dart';
 import 'splashscreen.dart';
 import 'createAcc.dart';
 import 'package:menesis_app/otp.dart';
@@ -129,7 +130,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
     // Block login if cooling down from too many failed attempts
     void coolDown () {
-      
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Too many attempts. Please try again later."),
@@ -211,7 +211,7 @@ class _LoginScreenState extends State<LoginScreen> {
         else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text("Login failed: ${e.code}"),
+              content: Text("${e.message}"),
               backgroundColor: Color(0xFFB56A7E),
             ),
           );
@@ -324,11 +324,103 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return BlocListener<AuthCubit, AuthState>(
       listener: (context, state) {
-        if (state is Authenticated) {
+        if (state is NeedVerificationLogin) {
+          showDialog(
+            context: context, 
+            builder: (context) {
+              return AlertDialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                backgroundColor: const Color(0xFFFFFBFC),
+                title: const Text(
+                  "Login",
+                  style: TextStyle(
+                    fontFamily: 'CormorantGaramond',
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF3A1F3D),
+                    ),
+                  ),
+                  content: Text(
+                    "Account is not yet verified.\nAccount verification sent on your email!\nPlease check your inbox.",
+                    style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.black54,
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(); 
+                      emailController.clear();
+                    },
+                    child: const Text(
+                      "OK",
+                      style: TextStyle(
+                        color: Colors.black45,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      try {
+                        final user = FirebaseAuth.instance.currentUser;
+                        if (user != null) {
+                          await user.sendEmailVerification();
+                          // Feedback is important!
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar( // Removed 'const'
+                              content: Text("Verification email resent!"),
+                              backgroundColor: const Color(0xFFB56A7E),
+                            ),
+                          );
+                        }
+                      } on FirebaseAuthException catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar( // Removed 'const'
+                              content: Text("${e.message}"),
+                              backgroundColor: const Color(0xFFB56A7E),
+                            ),
+                        ); // This captures "too many requests" errors
+                      }
+                      catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar( // Removed 'const'
+                              content: Text("Error: $e"),
+                              backgroundColor: const Color(0xFFB56A7E),
+                            ),
+                        ); // This captures "too many requests" errors
+                      }
+                    },
+                    child: const Text(
+                      "Resend Email",
+                      style: TextStyle(
+                        color: Color(0xFFB56A7E),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
+          );
+        }
+        else if (state is Verified) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const PeriodSetupScreen())
+          );
+        }
+        else if (state is Authenticated) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const HomePage())
           );
+          emailController.clear();
+          passwordController.clear();
         }
       },
     

@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import '/app_navigation/tab3/settings/changePass.dart';
 import '/app_navigation/tab3/settings/changeEmail.dart';
 
-// ============================================================
-// DataAccountScreen
-// Purpose: Settings screen para sa account-related actions ng user
-// tulad ng change password, change email, clear data, at delete account.
-// ============================================================
+/// ============================================================
+/// DataAccountScreen
+/// - Ito ang screen para sa "Data & Account" settings ng user.
+/// - Naglalaman ng options: Change Password, Change Email,
+///   Clear Data, at Delete Account.
+/// ============================================================
 class DataAccountScreen extends StatelessWidget {
   const DataAccountScreen({super.key});
 
@@ -16,9 +17,9 @@ class DataAccountScreen extends StatelessWidget {
       body: Stack(
         children: [
 
-          // ── BACKGROUND GRADIENT ──────────────────────────────────
-          // Naglalagay ng gradient background mula itaas hanggang baba.
-          // Purpose: Para magmukhang maayos at may visual depth ang screen.
+          /// --- BACKGROUND GRADIENT ---
+          /// Naglalagay ng gradient background mula top hanggang bottom.
+          /// Ginagawa itong visual base ng buong screen.
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -32,9 +33,6 @@ class DataAccountScreen extends StatelessWidget {
             ),
           ),
 
-          // ── MAIN CONTENT ─────────────────────────────────────────
-          // SafeArea ensures hindi natatakpan ng status bar o notch ang content.
-          // Purpose: Lahat ng visible na elements ay naka-wrap dito.
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -42,10 +40,10 @@ class DataAccountScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
 
-                  // ── HEADER: BACK BUTTON + TITLE ───────────────────
-                  // Nagpapakita ng back arrow at screen title.
-                  // Purpose: Para makabalik ang user sa nakaraang screen
-                  // at malaman kung anong page siya ngayon.
+                  /// --- HEADER ROW (Back Button + Title) ---
+                  /// Nagpapakita ng back arrow at ng title na "Data & Account".
+                  /// Ang Transform.translate ay ginagamit para i-align nang maayos
+                  /// ang icon at text sa loob ng row.
                   const SizedBox(height: 15),
                   Row(
                     children: [
@@ -89,52 +87,11 @@ class DataAccountScreen extends StatelessWidget {
 
                   const SizedBox(height: 25),
 
-                  // ── CYCLE INFO SECTION ────────────────────────────
-                  // Nagpapakita ng cycle-related information ng user
-                  // tulad ng Period Length at Cycle Length.
-                  // Purpose: Para madaling makita ng user ang kanyang cycle data
-                  // nang hindi na kailangang pumunta sa ibang screen.
-                  _sectionLabel("Cycle Info"),
+                  /// --- ACCOUNT OPTIONS LIST ---
+                  /// Bawat _accountOption() ay isang tappable row na may icon at label.
+                  /// Ang Divider() sa pagitan ay separator para sa bawat option.
 
-                  // TODO: [ADD] Kunin ang Period Length ng user mula sa database
-                  // at i-display ito dito gamit ang isang display widget o Text.
-                  // Dapat: mag-fetch ng value (e.g., "5 days") mula sa user record,
-                  // at i-pass bilang subtitle sa _accountOption widget.
-                  // The code should be placed here
-
-                  _accountOption(
-                    icon: Icons.water_drop_outlined,
-                    title: "Period Length",
-                    subtitle: null, // TODO: [EDIT] Palitan ng actual na value mula sa DB (e.g., "5 days")
-                    showArrow: false,
-                  ),
-
-                  const Divider(),
-
-                  // TODO: [ADD] Kunin ang Cycle Length ng user mula sa database
-                  // at i-display ito dito. Dapat: mag-fetch ng value (e.g., "28 days")
-                  // mula sa user record, at i-pass bilang subtitle sa _accountOption widget.
-                  // The code should be placed here
-
-                  _accountOption(
-                    icon: Icons.loop_outlined,
-                    title: "Cycle Length",
-                    subtitle: null, // TODO: [EDIT] Palitan ng actual na value mula sa DB (e.g., "28 days")
-                    showArrow: false,
-                  ),
-
-                  const SizedBox(height: 10),
-                  const Divider(thickness: 1.5),
-                  const SizedBox(height: 10),
-
-                  // ── ACCOUNT ACTIONS SECTION ───────────────────────
-                  // Nagpapakita ng mga action options na may kaugnayan sa account.
-                  // Purpose: Para mapamahalaan ng user ang kanyang account settings.
-                  _sectionLabel("Account"),
-
-                  // ── OPTION: CHANGE PASSWORD ───────────────────────
-                  // Pindutin para mapunta sa ChangePasswordScreen.
-                  // Purpose: Para mapalitan ng user ang kanyang password.
+                  // Change Password — dinidiretso sa ChangePasswordScreen
                   _accountOption(
                     icon: Icons.lock_outline,
                     title: "Change Password",
@@ -150,9 +107,7 @@ class DataAccountScreen extends StatelessWidget {
 
                   const Divider(),
 
-                  // ── OPTION: CHANGE EMAIL ──────────────────────────
-                  // Pindutin para mapunta sa ChangeEmailScreen.
-                  // Purpose: Para mapalitan ng user ang kanyang email address.
+                  // Change Email — dinidiretso sa ChangeEmailScreen
                   _accountOption(
                     icon: Icons.mail_outline,
                     title: "Change Email",
@@ -167,39 +122,22 @@ class DataAccountScreen extends StatelessWidget {
                   ),
 
                   const SizedBox(height: 5),
-                  const Divider(thickness: 1.5),
-                  const SizedBox(height: 10),
+                  const Divider(),
 
-                  // ── DANGER ZONE SECTION ───────────────────────────
-                  // Nagpapakita ng mga mapanganib na options tulad ng
-                  // Clear Data at Delete Account.
-                  // Purpose: Malinaw na naka-hiwalay ang danger actions
-                  // para hindi aksidenteng mapindot ng user.
-                  _sectionLabel("Danger Zone", isDanger: true),
-
-                  // ── OPTION: CLEAR DATA ────────────────────────────
-                  // Nagpapakita ng confirmation dialog bago i-clear ang data.
-                  // Purpose: Para maalis ng user ang lahat ng stored app data
-                  // nang hindi natatanggal ang kanyang account.
+                  // Clear Data — nagbubukas ng confirmation dialog
                   _accountOption(
                     icon: Icons.cleaning_services_outlined,
                     title: "Clear Data",
-                    isDanger: true,
-                    showArrow: false,
                     onTap: () => _showClearDataDialog(context),
                   ),
 
                   const Divider(),
 
-                  // ── OPTION: DELETE ACCOUNT ────────────────────────
-                  // Nagpapakita ng confirmation dialog bago i-delete ang account.
-                  // Purpose: Para permanenteng matanggal ng user ang kanyang account,
-                  // na may 30-day recovery window.
+                  // Delete Account — nagbubukas ng confirmation dialog (danger action)
                   _accountOption(
                     icon: Icons.delete_outline,
                     title: "Delete Account",
                     isDanger: true,
-                    showArrow: false,
                     onTap: () => _showDeleteAccountDialog(context),
                   ),
                 ],
@@ -211,39 +149,24 @@ class DataAccountScreen extends StatelessWidget {
     );
   }
 
-  // ── SECTION LABEL WIDGET ────────────────────────────────────────
-  // Nagpapakita ng label/heading para sa bawat grupo ng options.
-  // Purpose: Para malinaw na ma-grupo ang related na options
-  // at mas madaling ma-navigate ng user ang screen.
-  Widget _sectionLabel(String label, {bool isDanger = false}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: isDanger ? Colors.redAccent : const Color(0xFFB56A7E),
-          letterSpacing: 1.1,
-        ),
-      ),
-    );
-  }
-
-  // ── REUSABLE OPTION ITEM WIDGET ─────────────────────────────────
-  // Isang row item na may icon, title, optional subtitle, at optional forward arrow.
-  // Purpose: Para hindi paulit-ulit ang code sa bawat option item.
-  // Ginagamit ang isDanger flag para gawing pula ang kulay kung mapanganib ang action.
-  // Ginagamit ang showArrow flag para kontrolin kung kailan lalabas ang arrow icon.
-  // Ginagamit ang subtitle para magpakita ng additional info (e.g., "5 days").
+  /// ============================================================
+  /// _accountOption()
+  /// - Reusable widget para sa bawat row ng setting option.
+  /// - May icon, label, at optional arrow sa kanan.
+  /// - Ang isDanger flag ay nagbabago ng kulay ng icon at text sa pula
+  ///   para sa destructive actions tulad ng Delete Account.
+  /// ============================================================
   Widget _accountOption({
     required IconData icon,
     required String title,
-    String? subtitle,
     bool isDanger = false,
-    bool showArrow = true,
     VoidCallback? onTap,
   }) {
+    // Tinatanggal ang arrow para sa Clear Data at Delete Account
+    // dahil hindi sila nagdidiretso sa ibang screen.
+    final bool showArrow =
+        title != "Clear Data" && title != "Delete Account";
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(15),
@@ -251,45 +174,20 @@ class DataAccountScreen extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 16),
         child: Row(
           children: [
-
-            // ── ICON ─────────────────────────────────────────────
-            // Nagpapakita ng icon na nagsasaad ng uri ng option.
-            // Pula kung isDanger, rosas kung normal.
             Icon(
               icon,
               color: isDanger ? Colors.red : const Color(0xFFB56A7E),
             ),
             const SizedBox(width: 12),
-
-            // ── TITLE + SUBTITLE ──────────────────────────────────
-            // Nagpapakita ng pangunahing label at optional na additional info.
-            // Purpose: Para malaman ng user kung ano ang option at ang kasalukuyang value nito.
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      color: isDanger ? Colors.red : Colors.black,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  if (subtitle != null)
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.black54,
-                      ),
-                    ),
-                ],
+              child: Text(
+                title,
+                style: TextStyle(
+                  color: isDanger ? Colors.red : Colors.black,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
-
-            // ── FORWARD ARROW ─────────────────────────────────────
-            // Ipinapakita lang kung ang showArrow ay true.
-            // Purpose: Visual cue na may navigation ang option na ito.
             if (showArrow)
               const Icon(Icons.arrow_forward_ios, size: 16),
           ],
@@ -298,9 +196,11 @@ class DataAccountScreen extends StatelessWidget {
     );
   }
 
-  // ── CLEAR DATA DIALOG ───────────────────────────────────────────
-  // Nagpapakita ng warning dialog bago i-clear ang data ng user.
-  // Purpose: Para masigurado na sadya ng user ang aksyon bago ito isagawa.
+  /// ============================================================
+  /// _showClearDataDialog()
+  /// - Nagpapakita ng confirmation dialog bago i-clear ang app data.
+  /// - Ginagamit ang _customDialog() para sa consistent na UI.
+  /// ============================================================
   void _showClearDataDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -312,19 +212,21 @@ class DataAccountScreen extends StatelessWidget {
           "Are you sure you want to clear all app data?\n\nThis action cannot be undone.",
           confirmText: "Clear",
           onConfirm: () {
-            // TODO: [EDIT] I-implement ang actual na Clear Data logic dito.
+            // TODO: (EDIT) - I-implement ang actual na Clear Data logic dito.
             // Kapag pinindot ng user ang "Clear" button, dapat:
             // 1. I-reset ang lahat ng locally stored data ng user
-            //    (hal. SharedPreferences.clear(), local Hive/SQLite data).
-            // 2. Huwag tanggalin ang account sa database — existing pa rin ang account,
-            //    i-clear lang ang mga ininput na data sa app locally.
-            // 3. I-close muna ang dialog gamit ang Navigator.pop(context).
-            // 4. Mag-trigger ng app refresh — i-navigate ang user pabalik sa homepage.
-            //    (Gamitin ang Navigator.pushAndRemoveUntil para ma-clear ang nav stack.)
-            // 5. Pagkatapos ng redirect, magpakita ng SnackBar na nagsasabing:
-            //    "Data cleared successfully." o katulad na mensahe.
-            // Note: Kung may loading/delay (e.g., async DB clear), pwedeng mag-show
-            //    ng loading indicator muna bago mag-navigate.
+            //    (e.g., SharedPreferences, Hive, local DB)
+            //    PERO hindi dapat mabura ang account sa database —
+            //    existing pa rin ang account, local data lang ang mawawala.
+            // 2. Pagkatapos ma-clear ang data, i-refresh/restart ang app
+            //    para magsimula ulit sa initial state (parang bagong install).
+            // 3. I-navigate ang user pabalik sa homepage automatically
+            //    (ilang seconds after ng successful clear — depende sa implementation).
+            // 4. Magpakita ng SnackBar message na nagsasabi na
+            //    successful ang pag-clear ng data.
+            // Tip: Pwedeng gamitin ang Navigator.pushAndRemoveUntil()
+            //      para i-reset ang navigation stack, at ang
+            //      RestartWidget / Phoenix package para i-restart ang app.
             // The code should be placed here
 
           },
@@ -333,10 +235,11 @@ class DataAccountScreen extends StatelessWidget {
     );
   }
 
-  // ── DELETE ACCOUNT DIALOG ───────────────────────────────────────
-  // Nagpapakita ng warning dialog bago i-delete ang account ng user.
-  // Purpose: Para masigurado na sadya ng user ang aksyon.
-  // May 30-day recovery window bago permanenteng matanggal ang account.
+  /// ============================================================
+  /// _showDeleteAccountDialog()
+  /// - Nagpapakita ng confirmation dialog bago i-delete ang account.
+  /// - May warning na ang account ay maaaring ma-recover within 30 days.
+  /// ============================================================
   void _showDeleteAccountDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -349,21 +252,23 @@ class DataAccountScreen extends StatelessWidget {
           confirmText: "Delete",
           isDanger: true,
           onConfirm: () {
-            // TODO: [EDIT] I-implement ang actual na Delete Account logic dito.
+            // TODO: (EDIT) - I-implement ang actual na Delete Account logic dito.
             // Kapag pinindot ng user ang "Delete" button, dapat:
-            // 1. I-mark ang account sa database bilang "deleted" — soft delete lang ito.
-            //    Huwag agad permanenteng tanggalin. Mag-save ng deletion timestamp
-            //    (hal. deletedAt: DateTime.now()) sa user record sa database.
-            // 2. Mag-set ng 30-day recovery window:
-            //    - Kung nag-login ulit ang user within 30 days → i-restore ang account
-            //      (i-clear ang deletedAt field).
-            //    - Kung hindi na-recover after 30 days → permanenteng tanggalin ang account.
-            //      Ito ay dapat i-handle sa backend via scheduled job,
-            //      Cloud Function (Firebase), o cron task.
-            // 3. I-log out ang user at i-redirect sa login/splash screen.
-            //    (Gamitin ang Navigator.pushAndRemoveUntil para ma-clear ang nav stack.)
-            // 4. Optional: Magpakita ng final message o screen na nagsasabi na
-            //    naka-delete na ang account at kailan maa-recover.
+            // 1. Huwag agad na burahin ang account sa database.
+            //    I-mark lang ang account bilang "deleted" o "pending_deletion"
+            //    at i-store ang deletion timestamp sa database.
+            // 2. Ang account ay mananatili sa database ng 30 days
+            //    mula deletion date. Pwedeng gumamit ng scheduled job /
+            //    cloud function para awtomatikong tanggalin ang account
+            //    pagkatapos ng 30 days kung hindi na-retrieve ng owner.
+            // 3. Kung gusto mong payagan ang user na ma-recover ang account
+            //    within 30 days, gumawa ng separate recovery screen o flow.
+            // 4. Pagkatapos ma-mark bilang deleted, i-log out ang user at
+            //    i-navigate siya sa login/onboarding screen.
+            // Tip: Sa Firestore, pwedeng mag-add ng field na:
+            //      "isDeleted: true" at "deletedAt: Timestamp"
+            //      Tapos gumawa ng Cloud Function na nag-check
+            //      at nag-delete after 30 days.
             // The code should be placed here
 
           },
@@ -372,10 +277,13 @@ class DataAccountScreen extends StatelessWidget {
     );
   }
 
-  // ── REUSABLE CUSTOM DIALOG WIDGET ──────────────────────────────
-  // Nagpapakita ng styled confirmation dialog na may icon, title, message, at buttons.
-  // Purpose: Para magamit ng pareho ang dialog design sa Clear Data at Delete Account.
-  // Ginagamit ang isDanger flag para mag-indicate kung mapanganib ang action.
+  /// ============================================================
+  /// _customDialog()
+  /// - Reusable custom dialog widget para sa Clear Data at Delete Account.
+  /// - Naglalaman ng warning icon, title, message, Cancel, at Confirm buttons.
+  /// - Ang isDanger flag ay dating nagbabago ng kulay pero pareho naman
+  ///   ang dalawa, kaya na-simplify na ang logic dito.
+  /// ============================================================
   Widget _customDialog(
       BuildContext context, {
         required String title,
@@ -394,9 +302,9 @@ class DataAccountScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
 
-            // ── WARNING ICON ────────────────────────────────────
-            // Nagpapakita ng warning icon sa tuktok ng dialog.
-            // Purpose: Visual cue para malaman ng user na seryoso ang aksyon.
+            /// --- WARNING ICON ---
+            /// Nagpapakita ng warning icon para alertin ang user
+            /// na ang action na ito ay may epekto at hindi basta-basta.
             Icon(
               Icons.warning_amber_rounded,
               color: Colors.redAccent[700],
@@ -405,9 +313,8 @@ class DataAccountScreen extends StatelessWidget {
 
             const SizedBox(height: 15),
 
-            // ── DIALOG TITLE ────────────────────────────────────
-            // Nagpapakita ng pangalan ng aksyon (e.g., "Clear Data", "Delete Account").
-            // Purpose: Para malaman agad ng user kung ano ang nangyayari.
+            /// --- DIALOG TITLE ---
+            /// Ang title ay bold at may dark color para sa emphasis.
             Text(
               title,
               style: const TextStyle(
@@ -419,9 +326,9 @@ class DataAccountScreen extends StatelessWidget {
 
             const SizedBox(height: 15),
 
-            // ── DIALOG MESSAGE ──────────────────────────────────
-            // Nagpapakita ng detalyadong mensahe tungkol sa aksyon.
-            // Purpose: Para malaman ng user ang consequences bago mag-confirm.
+            /// --- DIALOG MESSAGE ---
+            /// Nagpapaliwanag ng consequences ng action sa user.
+            /// Center-aligned para mas madaling mabasa.
             Text(
               message,
               textAlign: TextAlign.center,
@@ -434,9 +341,10 @@ class DataAccountScreen extends StatelessWidget {
 
             const SizedBox(height: 20),
 
-            // ── ACTION BUTTONS: CANCEL + CONFIRM ────────────────
-            // Nagpapakita ng dalawang buttons: Cancel (dismiss) at Confirm (proceed).
-            // Purpose: Binibigyan ng pagpipilian ang user na ituloy o kanselahin ang aksyon.
+            /// --- ACTION BUTTONS (Cancel + Confirm) ---
+            /// Dalawang buttons sa isang Row:
+            /// - Cancel: nag-close ng dialog, walang nangyayari.
+            /// - Confirm: nag-e-execute ng action (Clear o Delete).
             Row(
               children: [
                 Expanded(

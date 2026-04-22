@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:convex_bottom_bar/convex_bottom_bar.dart';
 import 'package:menesis_app/app_navigation/tab1/calendar.dart';
@@ -157,6 +159,17 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  Future<String?> getUserName() async {
+    String? authUid = FirebaseAuth.instance.currentUser?.uid;
+    DocumentSnapshot userName = await FirebaseFirestore.instance.collection('users').doc(authUid).get();
+    if (userName['first name'] == "") {
+      return userName['username'];
+    }
+    else {
+      return userName['first name'];
+    }
+  }
+
   // ─────────────────────────────────────────────
   // BUILD HOME CONTENT
   // Constructs the entire scrollable home tab layout:
@@ -166,6 +179,7 @@ class _HomePageState extends State<HomePage> {
   //   - Countdown cards (Next Cycle / Next Period)
   //   - Today's Suggestion section
   // ─────────────────────────────────────────────
+  
   Widget _buildHomeContent() {
     final strip = _weekStrip;
 
@@ -195,17 +209,28 @@ class _HomePageState extends State<HomePage> {
                         fontWeight: FontWeight.w400,
                       ),
                     ),
-                    const Text(
+                    FutureBuilder(future: getUserName(), 
+                      builder: (context, snapshot) {
+                        String? name;
+                        if(snapshot.connectionState == ConnectionState.done) {
+                          name = snapshot.data;
+                        }
+                        else {
+                          name = "Loading";
+                        }
+                        return Text(
                       // TODO: (EDIT) Palitan ang hardcoded na "Lily" ng dynamic
                       // na username na galing sa user profile / database.
                       // The code should be placed here
-                      'Hello, Lily',
-                      style: TextStyle(
-                        fontFamily: "CormorantGaramond",
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF44222B),
-                      ),
+                          'Hello, $name',
+                          style: TextStyle(
+                            fontFamily: "CormorantGaramond",
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF44222B),
+                          ),
+                        );
+                      }
                     ),
                     const SizedBox(height: 2),
                     Text(

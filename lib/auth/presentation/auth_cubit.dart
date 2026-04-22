@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:menesis_app/auth/entities/app_user.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -12,6 +13,13 @@ class NeedVerification extends AuthState {
   NeedVerification(this.user);
 }
 
+class NeedVerificationLogin extends AuthState {
+  final AppUser user;
+  NeedVerificationLogin(this.user);
+}
+
+class Verified extends AuthState {}
+
 class AuthInitial extends AuthState {}
 
 class AuthLoading extends AuthState {}
@@ -22,6 +30,8 @@ class Authenticated extends AuthState {
 }
 
 class Unauthenticated extends AuthState {}
+
+class Error extends AuthState {}
 
 class AuthError extends AuthState {
   final String message;
@@ -54,7 +64,15 @@ class AuthCubit extends Cubit<AuthState> {
       final user = await authRepo.loginWithEmailPassword(email, password);
       if (user!=null) {
         _currentUser = user;
-        emit(Authenticated(user));
+        final userCheck = FirebaseAuth.instance.currentUser;
+        if(!userCheck!.emailVerified) {
+          await userCheck.sendEmailVerification();
+          emit(NeedVerificationLogin(user));
+          _startVerificationCheck();
+        }
+        else {
+          emit(Authenticated(user));
+        }
       }
       else {
         emit(Unauthenticated());
@@ -79,6 +97,9 @@ class AuthCubit extends Cubit<AuthState> {
       else {
         emit(Unauthenticated());
       }
+    } 
+    on FirebaseAuthException {
+      emit(Error());
     }
     catch (e) {
       emit(AuthError(e.toString()));
@@ -93,6 +114,7 @@ class AuthCubit extends Cubit<AuthState> {
 
       if (user?.emailVerified ?? false) {
         timer.cancel();
+        emit(Verified());
         emit(Authenticated(AppUser(uid: user!.uid, email: user.email!)));
       }
     });

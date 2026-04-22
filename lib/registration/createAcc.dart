@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -133,12 +134,52 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     final authCubit = context.read<AuthCubit>();
 
     authCubit.register(fname, mi, lname, email, password);
-    /*final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      
-    }*/
+    
   }
+
+  // If registration failed this will display a message
+  Future<String> _errorCatching() async {
+    try {
+      final FirebaseAuth firebaseAuth = FirebaseAuth.instance;
+      await firebaseAuth.createUserWithEmailAndPassword(
+        email: emailController.text.trim(), 
+        password: passwordController.text.trim());
+      return "success";  
+    }
+    on FirebaseAuthException catch (e) {
+      if (e.code == "email-already-in-use") {
+        return "Email is already used.";
+      }
+      else if (e.code == "invalid-email") {
+        return "Invalid email format";
+      }
+      else {
+        return "${e.message}";
+      }
+    }
+  }
+
+  // Saves user's data
+  Future addUserDetails() async {
+    final String fname = firstNameController.text.trim();
+    final String mi = middleInitialController.text.trim();
+    final String lname = surnameController.text.trim();
+    final String email = emailController.text.trim();
+    final String password = passwordController.text.trim();
+    final user = FirebaseAuth.instance.currentUser;
   
+  if (user != null) {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'first name': fname,
+        'middle initial': mi,
+        'last name': lname,
+        'email': email,
+        'password': password,
+        'password set date': DateTime.now(),
+        'username': email.substring(0, email.indexOf('@'))
+      });
+    }
+  } 
 
 // ============================================================
   // build() — Main UI
@@ -159,6 +200,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
           );
         }
         else if (state is NeedVerification) {
+          addUserDetails();
           showDialog(
             context: context, 
             builder: (context) {
@@ -197,16 +239,70 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                       ),
                     ),
                   ),
+                  TextButton(
+                    onPressed: () async {
+                      try {
+                        final user = FirebaseAuth.instance.currentUser;
+                        if (user != null) {
+                          await user.sendEmailVerification();
+                          // Feedback is important!
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar( // Removed 'const'
+                              content: Text("Verification email resent!"),
+                              backgroundColor: const Color(0xFFB56A7E),
+                            ),
+                          );
+                        }
+                      } on FirebaseAuthException catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar( // Removed 'const'
+                              content: Text("${e.message}"),
+                              backgroundColor: const Color(0xFFB56A7E),
+                            ),
+                        ); // This captures "too many requests" errors
+                      }
+                      catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar( // Removed 'const'
+                              content: Text("Error: $e"),
+                              backgroundColor: const Color(0xFFB56A7E),
+                            ),
+                        ); // This captures "too many requests" errors
+                      }
+                    },
+                    child: const Text(
+                      "Resend Email",
+                      style: TextStyle(
+                        color: Color(0xFFB56A7E),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
                 ],
               );
             }
           );
         }
+        else if (state is Error) {}
+        else if (state is Verified) {
+          final state = context.read<AuthCubit>().state;
+          if(state is Verified) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => PeriodSetupScreen()),
+            );
+          }
+        }
         else if (state is Unauthenticated) {
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Register failed. Please try again!')),
-          );
+          _errorCatching().then((errorMessage) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar( // Removed 'const'
+                content: Text(errorMessage),
+                backgroundColor: const Color(0xFFB56A7E),
+              ),
+            );
+          });
         }
       },
       child: Scaffold(
@@ -385,13 +481,13 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                         onPressed: isValid
                             ? () {
                               register();
-                              final state = context.read<AuthCubit>().state;
-                                if(state is Authenticated) {
+                              /*final state = context.read<AuthCubit>().state;
+                                if(state is Verified) {
                                   Navigator.pushReplacement(
                                     context,
                                     MaterialPageRoute(builder: (_) => PeriodSetupScreen()),
                                   );
-                                }
+                                }*/
                           // TODO: [EDIT] I-call dito ang registration logic
                           // Ilagay dito ang function na mag-sa-save ng user info
                           // sa database, mag-ge-generate ng username, at
