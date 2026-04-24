@@ -62,10 +62,12 @@ class _PeriodSetupScreenState extends State<PeriodSetupScreen> {
     final user = FirebaseAuth.instance.currentUser;
     
     if (user != null) {
-        await FirebaseFirestore.instance.collection('periods').doc(user.uid).set({
+        await FirebaseFirestore.instance.collection('cycle').doc(user.uid).set({
           'cycle type': cycleType,
           'cycle length': cycleLength,
-          'period length': periodLength,
+          'period length': periodLength
+        });
+        await FirebaseFirestore.instance.collection('settings').doc(user.uid).set({
           'smart prediction': smartPrediction
         });
       }

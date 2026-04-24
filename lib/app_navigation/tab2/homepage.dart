@@ -161,12 +161,12 @@ class _HomePageState extends State<HomePage> {
 
   Future<String?> getUserName() async {
     String? authUid = FirebaseAuth.instance.currentUser?.uid;
-    DocumentSnapshot userName = await FirebaseFirestore.instance.collection('users').doc(authUid).get();
-    if (userName['first name'] == "") {
-      return userName['username'];
+    DocumentSnapshot user = await FirebaseFirestore.instance.collection('users').doc(authUid).get();
+    if (user['first name'] == "") {
+      return user['username'];
     }
     else {
-      return userName['first name'];
+      return user['first name'];
     }
   }
 
@@ -213,23 +213,19 @@ class _HomePageState extends State<HomePage> {
                       builder: (context, snapshot) {
                         String? name;
                         if(snapshot.connectionState == ConnectionState.done) {
-                          name = snapshot.data;
+                          return Text(
+                            'Hello, ${snapshot.data}',
+                            style: TextStyle(
+                              fontFamily: "CormorantGaramond",
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF44222B),
+                            ),
+                          );
                         }
                         else {
-                          name = "Loading";
+                          return CircularProgressIndicator();
                         }
-                        return Text(
-                      // TODO: (EDIT) Palitan ang hardcoded na "Lily" ng dynamic
-                      // na username na galing sa user profile / database.
-                      // The code should be placed here
-                          'Hello, $name',
-                          style: TextStyle(
-                            fontFamily: "CormorantGaramond",
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF44222B),
-                          ),
-                        );
                       }
                     ),
                     const SizedBox(height: 2),

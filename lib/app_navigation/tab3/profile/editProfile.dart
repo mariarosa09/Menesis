@@ -253,14 +253,6 @@ class EditProfileScreen extends StatelessWidget {
                                   ],
                                 ),
 
-                                const SizedBox(height: 15),
-
-                                // Username field
-                                _buildTextField(
-                                  label: "Username",
-                                  hint: "username",
-                                ),
-
                                 const SizedBox(height: 20),
 
                                 // Update button

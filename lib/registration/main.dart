@@ -473,7 +473,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       //          May inline error display sa ibaba.
                       // --------------------------------------------
                       const Text(
-                        "EMAIL/USERNAME",
+                        "EMAIL",
                         style: TextStyle(fontSize: 10, letterSpacing: 2),
                       ),
 

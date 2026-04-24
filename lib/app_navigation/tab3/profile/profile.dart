@@ -68,14 +68,14 @@ class ManageProfileScreen extends StatelessWidget {
 
   Future<String?> getPeriodLength() async {
     String? authUid = FirebaseAuth.instance.currentUser?.uid;
-    DocumentSnapshot userPeriod = await FirebaseFirestore.instance.collection('periods').doc(authUid).get();
+    DocumentSnapshot userPeriod = await FirebaseFirestore.instance.collection('cycle').doc(authUid).get();
     
     return userPeriod['period length'].toString();
   }
 
   Future<String?> getCycleLength() async {
     String? authUid = FirebaseAuth.instance.currentUser?.uid;
-    DocumentSnapshot userCycle = await FirebaseFirestore.instance.collection('periods').doc(authUid).get();
+    DocumentSnapshot userCycle = await FirebaseFirestore.instance.collection('cycle').doc(authUid).get();
     
     return userCycle['cycle length'].toString();
   }
@@ -192,15 +192,6 @@ class ManageProfileScreen extends StatelessWidget {
                           /// First Name + M.I. + Surname (mula sa registration).
                           /// -----------------------------------------------
 
-                          // TODO: (EDIT) - Palitan ang hardcoded "username" ng
-                          // actual full name ng user na kinuha sa database.
-                          // Ang format ng display ay: "FirstName M. Surname"
-                          // base sa registration fields na First Name, M.I., at Surname.
-                          // EDIT: Sa Text widget below, palitan ang "username" string
-                          // ng concatenated full name mula sa user model.
-                          // Example format: "${user.firstName} ${user.middleInitial}. ${user.surname}"
-                          // The code should be placed here
-
                           FutureBuilder(future:  getUserName(), 
                             builder: (context, snapshot) {
                               if (snapshot.connectionState == ConnectionState.done) {
@@ -213,13 +204,7 @@ class ManageProfileScreen extends StatelessWidget {
                                 );
                               }
                               else {
-                                return Text(snapshot.data ?? "Loading!",
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF3A1F3D),
-                                  ),
-                                );
+                                return CircularProgressIndicator();
                               }
                             }
                           ),
@@ -230,12 +215,6 @@ class ManageProfileScreen extends StatelessWidget {
                           /// USER EMAIL DISPLAY
                           /// Ipinapakita ang email ng user sa ilalim ng pangalan.
                           /// -----------------------------------------------
-
-                          // TODO: (EDIT) - Palitan ang hardcoded "user@email.com"
-                          // ng actual email ng logged-in user mula sa database o auth provider.
-                          // EDIT: Kunin ang email value mula sa user model
-                          // o mula sa authentication provider (e.g., Firebase Auth currentUser).
-                          // The code should be placed here
 
                           FutureBuilder(future:  getUserEmail(), 
                             builder: (context, snapshot) {

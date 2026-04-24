@@ -6,6 +6,8 @@
 //              bottom sheets (DailyLog, PossibleReasons, Remedy).
 // ============================================================
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '/app_navigation/tab1/dailyLog.dart';
 import '/app_navigation/tab1/viewReason.dart';
@@ -14,9 +16,9 @@ import '/app_navigation/tab1/viewRemedy.dart';
 // ── App Entry Point ──────────────────────────────────────────
 // Ito ang unang tumatakbo pagbukas ng app.
 // Naglulunsad ng MyApp widget bilang root ng application.
-void main() {
+/*void main() {
   runApp(const MyApp());
-}
+}*/
 
 // ── Root Widget ──────────────────────────────────────────────
 // Defines the overall MaterialApp configuration:
@@ -53,6 +55,14 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
   final DateTime _today = DateTime.now();
   late DateTime _selectedMonth;
   late DateTime _selectedDate;
+
+  bool start = true;
+
+  List<DateTime>? startDate;
+  List<DateTime>? endDate;
+  List<DateTime>? startFertile;
+  List<DateTime>? endFertile;
+  List<DateTime>? ovulation;
 
   String _logText  = '';
   String _noteText = '';
@@ -131,9 +141,10 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
               Expanded(
                 child: SingleChildScrollView(
                   controller: scrollController,
-                  child: DailyLog(selectedDate: date),
+                  child: dailyLog(selectedDate: date),
 
-                  // TODO: (EDITING) Palitan ang simpleng dailyLog() call ng may callback.
+                  // TODO: (EDITING) Palitan ang simpleng 
+                  //() call ng may callback.
                   // Para mabalik ang log data (symptoms, flow, mood, atbp.) sa parent widget,
                   // dapat may onSave callback ang dailyLog widget.
                   // Example: dailyLog(selectedDate: date, onSave: (logData) { ... })
@@ -229,6 +240,62 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
     );
   }
 
+  // When the user selects the start of the start period it predicts the period end date, fertile days and ovulation
+  Future addCycleHistory(DateTime selectedDate) async {
+    final user = FirebaseAuth.instance.currentUser;  
+    
+    DateTime startDate = selectedDate;
+
+
+    if (user != null) {
+
+        DocumentSnapshot userData = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).get();
+
+        int periodLength = userData['period length'];
+        int cycleLength = userData['cycle length'];
+
+        DateTime endDate = startDate.add(Duration(days: cycleLength-1));
+        DateTime periodEnd = startDate.add(Duration(days: periodLength-1));
+        DateTime fertileStart = startDate.add(Duration(days: cycleLength-20));
+        DateTime fertileEnd = fertileStart.add(Duration(days: 6));
+        DateTime ovulation = fertileEnd.subtract(Duration(days: 1));
+
+
+        await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('cycle history').doc(selectedDate.toString()).set({
+          'start date': startDate,
+          'period end': periodEnd,
+          'end date': endDate,
+          'fertile start': fertileStart,
+          'fertile end': fertileEnd,
+          'ovulation': ovulation
+        }
+      );
+    }
+  }
+
+  Future updateCycleHistory(DateTime selectedDate) async {
+    final user = FirebaseAuth.instance.currentUser;  
+    if (user != null) {
+      final CollectionReference allData = FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('cycle history');
+
+      final QuerySnapshot latest = await allData.orderBy('start date', descending: true).limit(1).get();
+      String latestId = latest.docs.first.id;
+
+      DocumentSnapshot cycleHistoryData = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('cycle history').doc(latestId).get();
+      DocumentSnapshot settingData = await FirebaseFirestore.instance.collection('setting').doc(user.uid).get();
+      DateTime endDate = (cycleHistoryData['period end'] as Timestamp).toDate();
+      DateTime startDate = (cycleHistoryData['start date'] as Timestamp).toDate();
+      Duration periodLength = (endDate.difference(startDate)) + Duration(days: 1);
+      if (settingData['smart prediction'] as bool) {
+        await allData.doc(latestId).update({
+          'period end': selectedDate,
+          'period length': periodLength
+        });
+      }
+    }
+  }
+
+  
   // ── Main Build Method ────────────────────────────────────────
   // Binubuo ang buong UI ng CalendarScreen:
   // calendar grid, date selector, log card, at FAB button.
@@ -270,7 +337,7 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
     //   - Fertile    → Color(0xFFddcb9c)
     // Para sa prediction, gamitin ang average cycle length (default: 28 days) bilang base.
     //
-    // The code should be placed here
+    // The code should be placed here 
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F3F5),
@@ -281,16 +348,72 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: const Color(0xFFAA556B),
         onPressed: () {
-          // TODO: (EDITING) Palitan ang empty onPressed ng isang function
-          // na magbubukas ng period log input (pwedeng bottom sheet o dialog).
-          // Dito ire-record ang petsa ng simula ng period at ilang araw ito tumagal.
-          // Kapag na-save, i-update ang calendar markers at i-save sa database.
-          //
-          // The code should be placed here
+          showDialog(
+            context: context, 
+            builder: (context) {
+              return AlertDialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                backgroundColor: const Color(0xFFFFFBFC),
+                title: Text(
+                  start ? "Period starts" : "Period Ends",
+                  style: TextStyle(
+                    fontFamily: 'CormorantGaramond',
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF3A1F3D),
+                    ),
+                  ),
+                  content: Text(
+                    start ? "Are you sure your period starts on ${_formatDate(_selectedDate)}?" :
+                    "Are you sure your period ends on ${_formatDate(_selectedDate)}?",
+                    style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.black54,
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(); 
+                      _selectedDate = _today;
+                    },
+                    child: const Text(
+                      "Select a date",
+                      style: TextStyle(
+                        color: Colors.black45,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      addCycleHistory(_selectedDate);
+                      // display the prediction in the calendar
+                      setState(() {
+                        start = !start;
+                      }); 
+                      _refreshData();
+                    },
+                    child: const Text(
+                      "Save",
+                      style: TextStyle(
+                        color: Color(0xFFB56A7E),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
+          );
         },
         icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text(
-          "Add Period Log",
+        label: Text(
+          start ? "Start Period" : "End Period",
           style: TextStyle(fontFamily: "DMSans", color: Colors.white),
         ),
       ),
@@ -677,29 +800,53 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
   //   - Regular days (transparent)
   // Single tap → piliin ang petsa
   // Double tap → piliin at agad buksan ang DailyLog
+
+  Future<(List<DateTime>, List<DateTime>, List<DateTime>, List<DateTime>, List<DateTime>)> getCycleData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    CollectionReference history = FirebaseFirestore.instance.collection('cycle').doc(user!.uid).collection('cycle history');
+    QuerySnapshot allData = await history.get();
+
+    List<DateTime> startDate = allData.docs.map((doc) => (doc.get('start date') as Timestamp).toDate()).toList();
+    List<DateTime> endDate = allData.docs.map((doc) => (doc.get('period end') as Timestamp).toDate()).toList();
+    List<DateTime> startFertile = allData.docs.map((doc) => (doc.get('fertile start') as Timestamp).toDate()).toList();
+    List<DateTime> endFertile = allData.docs.map((doc) => (doc.get('fertile end') as Timestamp).toDate()).toList();
+    List<DateTime> ovulation = allData.docs.map((doc) => (doc.get('ovulation') as Timestamp).toDate()).toList();
+  
+    return (startDate, endDate, startFertile, endFertile, ovulation);
+  }
+
+  void _refreshData() async {
+    final data = await getCycleData();
+
+    setState(() {
+      startDate = data.$1;
+      endDate = data.$2;
+      startFertile = data.$3;
+      endFertile = data.$4;
+      ovulation = data.$5;
+    });
+  }
+
+  /*Future<Color> getBgColor(int day) async {
+    
+
+  }*/
+
   Widget _buildDayCell(int day) {
+    
+    return FutureBuilder(
+      future: getCycleData(),
+      builder: (context, snapshot) {
+        final isSelected = day == _selectedDate.day &&
+        _selectedMonth.month == _selectedDate.month &&
+        _selectedMonth.year  == _selectedDate.year;
     final thisDay = DateTime(_selectedMonth.year, _selectedMonth.month, day);
 
     final isToday = day == _today.day &&
         _selectedMonth.month == _today.month &&
         _selectedMonth.year  == _today.year;
 
-    final isSelected = day == _selectedDate.day &&
-        _selectedMonth.month == _selectedDate.month &&
-        _selectedMonth.year  == _selectedDate.year &&
-        !isToday;
-
-    // ── Background color logic ─────────────────────────────
-    // Today = dark rose, Selected = light gray, Others = transparent
-    Color bgColor;
-    if (isToday) {
-      bgColor = const Color(0xFF884456);
-    } else if (isSelected) {
-      bgColor = const Color(0xFFD6D6D6);
-    } else {
-      bgColor = Colors.transparent;
-    }
-
+    
     // TODO: (EDITING) Dagdag ng color override para sa period/fertile/ovulation markers.
     // Bago i-assign ang bgColor, i-check muna kung ang thisDay ay nasa calendarMarkers map.
     // Kung oo, gamitin ang kulay na nakatakda sa legend para sa marker type.
@@ -708,63 +855,110 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
     // The code should be placed here
 
     Color textColor = isToday ? Colors.white : Colors.black87;
+    Color bgColor = Colors.transparent;
+    bool isPeriod = false;
+    bool isFertile = false;
+    bool isOvulation = false;
 
-    return GestureDetector(
-      onTap: () => setState(() => _selectedDate = thisDay),
-      onDoubleTap: () {
-        setState(() => _selectedDate = thisDay);
-        _openDailyLog(thisDay);
-      },
-      child: Center(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
-          width: 50,
-          height: isToday ? 50 : 45,
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(15),
-          ),
-          alignment: Alignment.center,
+    if (snapshot.hasData) {
+      final (startDate, endDate, startFertile, endFertile, ovulation) = snapshot.data!;
 
-          // ── Cell Content ───────────────────────────────────
-          // "Today" cell shows a "Today" label above the day number.
-          // All other cells show only the day number.
-          child: isToday
-              ? Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                "Today",
-                style: TextStyle(
-                  fontFamily: "CormorantGaramond",
-                  fontSize: 9,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
+    for(int i = 0; i < startDate.length; i++) {
+      DateTime date = DateTime(_selectedMonth.year, _selectedMonth.month, day);
+      
+      if ((date.isAfter(startDate[i]) || DateUtils.isSameDay(date, startDate[i])) && 
+      (date.isBefore(endDate[i]) || DateUtils.isSameDay(date, endDate[i]))) {
+        isPeriod = true;
+      }
+      if ((date.isAfter(startFertile[i]) || DateUtils.isSameDay(date, startFertile[i])) && 
+      (date.isBefore(endFertile[i]) || DateUtils.isSameDay(date, endFertile[i]))) {
+        isFertile = true;
+      }
+      if (DateUtils.isSameDay(date, ovulation[i])) {
+        isOvulation = true;
+      }
+    }    
+
+//   - Period     → Color(0xFFe2acb5)
+    //   - Ovulation  → Color(0xFFaedbc8)
+    //   - Fertile    → Color(0xFFddcb9c)
+
+    // ── Background color logic ─────────────────────────────
+    // Today = dark rose, Selected = light gray, Others = transparent
+      }
+
+      if (isToday) {
+      bgColor = const Color(0xFF884456);
+    } else if (isSelected) {
+      bgColor = const Color(0xFFD6D6D6);
+    } else if (isOvulation) {
+      bgColor = const Color(0xFFaedbc8);
+    } else if (isPeriod) {
+      bgColor = const Color(0xFFe2acb5);
+    } else if (isFertile) {
+      bgColor = const Color(0xFFddcb9c);
+    } else {
+      bgColor = Colors.transparent;
+    }
+
+      return GestureDetector(
+          onTap: () => setState(() => _selectedDate = thisDay),
+          onDoubleTap: () {
+            setState(() => _selectedDate = thisDay);
+            _openDailyLog(thisDay);
+          },
+          child: Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+              width: 50,
+              height: isToday ? 50 : 45,
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(15),
               ),
-              const SizedBox(height: 1),
-              Text(
+              alignment: Alignment.center,
+        
+              // ── Cell Content ───────────────────────────────────
+              // "Today" cell shows a "Today" label above the day number.
+              // All other cells show only the day number.
+              child: isToday
+                  ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    "Today",
+                    style: TextStyle(
+                      fontFamily: "CormorantGaramond",
+                      fontSize: 9,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    "$day",
+                    style: const TextStyle(
+                      fontFamily: "DMSans",
+                      fontSize: 13,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              )
+                  : Text(
                 "$day",
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: "DMSans",
                   fontSize: 13,
-                  color: Colors.white,
+                  color: textColor,
                   fontWeight: FontWeight.w500,
                 ),
               ),
-            ],
-          )
-              : Text(
-            "$day",
-            style: TextStyle(
-              fontFamily: "DMSans",
-              fontSize: 13,
-              color: textColor,
-              fontWeight: FontWeight.w500,
             ),
           ),
-        ),
-      ),
+        );
+      }
     );
   }
 
