@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class dailyLog extends StatefulWidget {
@@ -46,16 +48,117 @@ class _dailyLogState extends State<dailyLog> {
     {"label": "Watery", "icon": "assets/images/watery.png"},
   ];
 
-  final Set<String> selectedMoods = {};
-  final Set<String> selectedSymptoms = {};
-  final Set<String> selectedDischarge = {};
+  Set<String> selectedMoods = {};
+  Set<String> selectedSymptoms = {};
+  Set<String> selectedDischarge = {};
 
   final TextEditingController notesController = TextEditingController();
-
+  
   @override
   void dispose() {
     notesController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    getSymptoms();
+    getMood();
+    getSymptoms();
+    getNotes();
+    super.initState();
+  }
+
+  void saveLog() async {
+    final user = FirebaseAuth.instance.currentUser;
+    DateTime date = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
+
+    if (user != null) {
+      await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('logs').doc(date.toString()).set({
+        'log date': date,
+        'physical symptoms': selectedSymptoms,
+        'mood': selectedMoods,
+        'discharge': selectedDischarge,
+        'notes': notesController.text.trim(),
+      },
+      SetOptions(merge: true));
+    }
+  }
+
+  void getSymptoms() async {
+    final user = FirebaseAuth.instance.currentUser;  
+    DateTime date = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
+
+    if (user != null) {
+      DocumentSnapshot log = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('logs').doc(date.toString()).get();
+      if (mounted) {
+        setState(() {
+          if (log.exists) {
+            selectedSymptoms = (log['physical symptoms'] as List?)?.cast<String>().toSet() ?? {};
+          } 
+          else {
+            selectedSymptoms = {};
+          }
+        });
+      }
+    }
+  }
+
+  void getMood() async {
+    final user = FirebaseAuth.instance.currentUser;  
+    DateTime date = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
+
+    if (user != null) {
+      DocumentSnapshot log = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('logs').doc(date.toString()).get();
+      if (mounted) {
+        setState(() {
+          if (log.exists) {
+            selectedMoods = (log['mood'] as List?)?.cast<String>().toSet() ?? {};
+          } 
+          else {
+            selectedMoods = {};
+          }
+          });
+      }
+    }
+  }
+
+  void getDischarge() async {
+    final user = FirebaseAuth.instance.currentUser;  
+    DateTime date = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
+
+    if (user != null) {
+      DocumentSnapshot log = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('logs').doc(date.toString()).get();
+      if (mounted) {
+        setState(() {
+          if (log.exists) {
+            selectedDischarge = (log['discharge'] as List?)?.cast<String>().toSet() ?? {};
+          } 
+          else {
+            selectedDischarge = {};
+          }
+          });
+      }
+    }
+  }
+
+  void getNotes() async {
+    final user = FirebaseAuth.instance.currentUser; 
+    DateTime date = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
+ 
+    if (user != null) {
+      DocumentSnapshot log = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('logs').doc(date.toString()).get();
+      if (mounted) {
+        setState(() {
+          if (log.exists) {
+            notesController.text = log['status'] ?? ""; 
+          } 
+          else {
+            notesController.text = "";           
+          }
+        });
+      }
+    }
   }
 
   @override
@@ -292,9 +395,40 @@ class _dailyLogState extends State<dailyLog> {
                 ),
               ),
               onPressed: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Log Saved!")),
+                saveLog();
+                showDialog(
+                  context: context, 
+                  barrierDismissible: false,
+                  builder: (BuildContext builderContext) {
+                    Future.delayed(const Duration(seconds: 1), () {
+                      if (Navigator.of(builderContext).canPop()) {
+                        Navigator.pop(context);
+                        Navigator.of(builderContext).pop();
+                      }
+                    });
+                    return AlertDialog(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      backgroundColor: const Color(0xFFFFFBFC),
+                      title: const Text(
+                        "Daily Log",
+                        style: TextStyle(
+                          fontFamily: 'CormorantGaramond',
+                          fontSize: 22,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF3A1F3D),
+                          ),
+                        ),
+                        content: Text(
+                          "Log Saved!",
+                          style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    );
+                  }
                 );
               },
               child: const Text(

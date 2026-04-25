@@ -100,6 +100,8 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
     super.initState();
     _selectedMonth = DateTime(_today.year, _today.month);
     _selectedDate  = _today;
+    getLogStatus();
+    getNotes();
   }
 
   // ── Helper: Month Name & Date Formatter ─────────────────────
@@ -111,6 +113,45 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
   // ── Bottom Sheet: Daily Log ──────────────────────────────────
   // Nagbubukas ng DailyLog screen bilang draggable bottom sheet.
   // Tinatanggap ang selected date para malaman kung anong araw ang lilo-log.
+  void getLogStatus() async {
+    final user = FirebaseAuth.instance.currentUser;  
+    if (user != null) {
+      DocumentSnapshot userCycleInfo = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).get();
+      setState(() {
+        start = userCycleInfo['status'];
+      });
+    }
+  }
+
+  void getNotes() async {
+    final user = FirebaseAuth.instance.currentUser;  
+    if (user != null) {
+      DocumentSnapshot log = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('logs').doc(_selectedDate.toString()).get();
+      if (mounted) {
+        setState(() {
+          if (log.exists) {
+            _noteText = log['notes'] ?? ""; 
+          } 
+          else {
+            _noteText = "";           
+          }
+        });
+      }
+    }
+  }
+
+  void saveNotes() async {
+    final user = FirebaseAuth.instance.currentUser;
+    DateTime date = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+
+    if (user != null) {
+      await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('logs').doc(date.toString()).set({
+        'notes': _noteText.trim(),
+      },
+      SetOptions(merge: true));
+    }
+  }
+
   void _openDailyLog(DateTime date) {
     showModalBottomSheet(
       context: context,
@@ -243,55 +284,146 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
   // When the user selects the start of the start period it predicts the period end date, fertile days and ovulation
   Future addCycleHistory(DateTime selectedDate) async {
     final user = FirebaseAuth.instance.currentUser;  
-    
-    DateTime startDate = selectedDate;
-
 
     if (user != null) {
+      DocumentSnapshot userData = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).get();
 
-        DocumentSnapshot userData = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).get();
+      bool first = userData['emptyRecord'];
 
-        int periodLength = userData['period length'];
-        int cycleLength = userData['cycle length'];
+      await FirebaseFirestore.instance.collection('cycle').doc(user.uid).update({
+          'status': false,
+          'emptyRecord': false
+      }); 
+      
+      // Get setting data for smart prediction
+      DocumentSnapshot userSetting = await FirebaseFirestore.instance.collection('settings').doc(user.uid).get();
+      bool smartPrediction = userSetting['smart prediction'];
 
-        DateTime endDate = startDate.add(Duration(days: cycleLength-1));
-        DateTime periodEnd = startDate.add(Duration(days: periodLength-1));
-        DateTime fertileStart = startDate.add(Duration(days: cycleLength-20));
+      // If smart prediction is on recompute and update the cycle length 
+      if (smartPrediction && !first) {
+        // Get latest record
+        CollectionReference history = FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('cycle history');
+        final QuerySnapshot latest = await history.orderBy('start date', descending: true).limit(1).get();
+        String latestId = latest.docs.first.id;
+
+        // Get the previous cycle's length
+        DocumentSnapshot userCycleHistory = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('cycle history').doc(latestId).get();
+        final periodStart = (userCycleHistory['start date'] as Timestamp).toDate();
+        Duration previousCycleLength = selectedDate.difference(periodStart);
+
+        // Update previous cycle's cycle length
+        await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('cycle history').doc(latestId).update({
+          'cycle length': previousCycleLength.inDays
+        });
+
+        // Get all cycle lengths
+        QuerySnapshot allData = await history.get();
+        List<int> cycleLengths = allData.docs.map((doc) => (doc.get('cycle length') as int)).toList();
+        int sumOfCycleLength = 0;
+        int numOfCycleLength = cycleLengths.length;
+        for (int len in cycleLengths) {
+          sumOfCycleLength += len;
+        }
+        int average = (sumOfCycleLength / numOfCycleLength).ceil();
+
+        // Update cycle length in the database
+        await FirebaseFirestore.instance.collection('cycle').doc(user.uid).update({
+          'cycle length': average
+        });
+
+        // Compute the previous fertile and ovulation based on the cycle length
+        DateTime fertileStart = periodStart.add(Duration(days: previousCycleLength.inDays-20));
         DateTime fertileEnd = fertileStart.add(Duration(days: 6));
         DateTime ovulation = fertileEnd.subtract(Duration(days: 1));
 
-
-        await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('cycle history').doc(selectedDate.toString()).set({
-          'start date': startDate,
-          'period end': periodEnd,
-          'end date': endDate,
+        // Update the database
+        await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('cycle history').doc(latestId).update({
           'fertile start': fertileStart,
           'fertile end': fertileEnd,
           'ovulation': ovulation
-        }
-      );
+        });
+      }
+      
+      // Get the average periodLength and cycleLength (on and off)
+      int periodLength = userData['period length'];
+      int cycleLength = userData['cycle length'];
+
+      // Compute predictions (on and off)
+      DateTime startDate = selectedDate;
+      DateTime endDate = startDate.add(Duration(days: cycleLength-1));
+      DateTime periodEnd = startDate.add(Duration(days: periodLength-1));
+      DateTime fertileStart = startDate.add(Duration(days: cycleLength-20));
+      DateTime fertileEnd = fertileStart.add(Duration(days: 6));
+      DateTime ovulation = fertileEnd.subtract(Duration(days: 1));
+
+      // Add predictions to the firebase (on and off smart prediction)
+      await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('cycle history').doc(selectedDate.toString()).set({
+        'start date': startDate,
+        'period end': periodEnd,
+        'end date': endDate,
+        'fertile start': fertileStart,
+        'fertile end': fertileEnd,
+        'ovulation': ovulation
+      });
+      setState(() {
+        start = false;
+      });
     }
   }
 
   Future updateCycleHistory(DateTime selectedDate) async {
     final user = FirebaseAuth.instance.currentUser;  
+
     if (user != null) {
-      final CollectionReference allData = FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('cycle history');
+      // Update status for the add period log button and tracking of start and end date
+      await FirebaseFirestore.instance.collection('cycle').doc(user.uid).update({
+          'status': true
+      });
 
-      final QuerySnapshot latest = await allData.orderBy('start date', descending: true).limit(1).get();
+      // Get setting data for smart prediction
+      DocumentSnapshot userSetting = await FirebaseFirestore.instance.collection('settings').doc(user.uid).get();
+      bool smartPrediction = userSetting['smart prediction'];
+      
+      // Get the uid of the latest cycle history
+      final CollectionReference history = FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('cycle history');
+      final QuerySnapshot latest = await history.orderBy('start date', descending: true).limit(1).get();
       String latestId = latest.docs.first.id;
-
+      // Get the document of the latest cycle
       DocumentSnapshot cycleHistoryData = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('cycle history').doc(latestId).get();
-      DocumentSnapshot settingData = await FirebaseFirestore.instance.collection('setting').doc(user.uid).get();
-      DateTime endDate = (cycleHistoryData['period end'] as Timestamp).toDate();
-      DateTime startDate = (cycleHistoryData['start date'] as Timestamp).toDate();
-      Duration periodLength = (endDate.difference(startDate)) + Duration(days: 1);
-      if (settingData['smart prediction'] as bool) {
-        await allData.doc(latestId).update({
-          'period end': selectedDate,
-          'period length': periodLength
+
+      if(smartPrediction) {
+        // Compute current period length
+        DateTime periodStart = (cycleHistoryData['start date'] as Timestamp).toDate();
+        DateTime periodEnd = selectedDate;
+        Duration currentPeriodLength = (periodEnd.difference(periodStart)) + Duration(days: 1);
+
+        // Update the current cycle period length
+        await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('cycle history').doc(latestId).update({
+          'period length': currentPeriodLength.inDays
+        });
+
+        // Get the list of period lengths
+        QuerySnapshot allData = await history.get();
+        List<int> cycleLengths = allData.docs.map((doc) => (doc.get('period length') as int)).toList();
+        int sumOfPeriodLength = 0;
+        int numOfPeriodLength = cycleLengths.length;
+        for (int len in cycleLengths) {
+          sumOfPeriodLength += len;
+        }
+        int average = (sumOfPeriodLength / numOfPeriodLength).ceil();
+
+        // Update period length in the database
+        await FirebaseFirestore.instance.collection('cycle').doc(user.uid).update({
+          'period length': average
         });
       }
+      // Update end period date in the database
+      await history.doc(latestId).update({
+        'period end': selectedDate,
+      });
+      setState(() {
+        start = true;
+      });
     }
   }
 
@@ -389,13 +521,15 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
                   ),
                   TextButton(
                     onPressed: () {
-                      Navigator.of(context).pop();
-                      addCycleHistory(_selectedDate);
-                      // display the prediction in the calendar
-                      setState(() {
-                        start = !start;
-                      }); 
+                      if (start) {
+                        addCycleHistory(_selectedDate);
+                      }
+                      else {
+                        updateCycleHistory(_selectedDate);
+                      }
                       _refreshData();
+                      Navigator.of(context).pop();
+                      // display the prediction in the calendar
                     },
                     child: const Text(
                       "Save",
@@ -878,28 +1012,21 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
         isOvulation = true;
       }
     }    
+  }
 
-//   - Period     → Color(0xFFe2acb5)
-    //   - Ovulation  → Color(0xFFaedbc8)
-    //   - Fertile    → Color(0xFFddcb9c)
-
-    // ── Background color logic ─────────────────────────────
-    // Today = dark rose, Selected = light gray, Others = transparent
-      }
-
-      if (isToday) {
-      bgColor = const Color(0xFF884456);
-    } else if (isSelected) {
-      bgColor = const Color(0xFFD6D6D6);
-    } else if (isOvulation) {
-      bgColor = const Color(0xFFaedbc8);
-    } else if (isPeriod) {
-      bgColor = const Color(0xFFe2acb5);
-    } else if (isFertile) {
-      bgColor = const Color(0xFFddcb9c);
-    } else {
-      bgColor = Colors.transparent;
-    }
+  if (isToday) {
+    bgColor = const Color(0xFF884456);
+  } else if (isSelected) {
+    bgColor = const Color(0xFFD6D6D6);
+  } else if (isOvulation) {
+    bgColor = const Color(0xFFaedbc8);
+  } else if (isPeriod) {
+    bgColor = const Color(0xFFe2acb5);
+  } else if (isFertile) {
+    bgColor = const Color(0xFFddcb9c);
+  } else {
+    bgColor = Colors.transparent;
+  }
 
       return GestureDetector(
           onTap: () => setState(() => _selectedDate = thisDay),

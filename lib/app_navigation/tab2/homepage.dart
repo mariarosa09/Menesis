@@ -211,7 +211,6 @@ class _HomePageState extends State<HomePage> {
                     ),
                     FutureBuilder(future: getUserName(), 
                       builder: (context, snapshot) {
-                        String? name;
                         if(snapshot.connectionState == ConnectionState.done) {
                           return Text(
                             'Hello, ${snapshot.data}',
