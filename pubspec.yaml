@@ -69,6 +69,13 @@ flutter:
     - assets/images/brown.png
     - assets/images/bright_yellow.png
 
+    - assets/images/period_cat/default.png
+    - assets/images/period_cat/left.png
+    - assets/images/period_cat/right.png
+    - assets/images/period_cat/up.png
+    - assets/images/period_cat/down.png
+    - assets/images/period_cat/cloud.png
+
 
   fonts:
     - family: CormorantGaramond
