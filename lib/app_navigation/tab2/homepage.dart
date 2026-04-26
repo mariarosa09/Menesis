@@ -179,7 +179,7 @@ class _HomePageState extends State<HomePage> {
   //   - Countdown cards (Next Cycle / Next Period)
   //   - Today's Suggestion section
   // ─────────────────────────────────────────────
-  
+
   Widget _buildHomeContent() {
     final strip = _weekStrip;
 
@@ -209,23 +209,23 @@ class _HomePageState extends State<HomePage> {
                         fontWeight: FontWeight.w400,
                       ),
                     ),
-                    FutureBuilder(future: getUserName(), 
-                      builder: (context, snapshot) {
-                        if(snapshot.connectionState == ConnectionState.done) {
-                          return Text(
-                            'Hello, ${snapshot.data}',
-                            style: TextStyle(
-                              fontFamily: "CormorantGaramond",
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF44222B),
-                            ),
-                          );
+                    FutureBuilder(future: getUserName(),
+                        builder: (context, snapshot) {
+                          if(snapshot.connectionState == ConnectionState.done) {
+                            return Text(
+                              'Hello, ${snapshot.data}',
+                              style: TextStyle(
+                                fontFamily: "CormorantGaramond",
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF44222B),
+                              ),
+                            );
+                          }
+                          else {
+                            return CircularProgressIndicator();
+                          }
                         }
-                        else {
-                          return CircularProgressIndicator();
-                        }
-                      }
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -517,7 +517,21 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F0F5),
-      body: _pages[_selectedIndex],
+      body: Stack(
+        children: [
+          _pages[_selectedIndex],
+
+          if (_selectedIndex == 1)
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: PeriodCatButton(
+                isPeriodStarted: false, // temporary la pa logic
+                onTap: () {},
+              ),
+            ),
+        ],
+      ),
       bottomNavigationBar: ConvexAppBar(
         style: TabStyle.reactCircle,
         backgroundColor: const Color(0xFF45243B),
@@ -615,6 +629,133 @@ class _HomePageState extends State<HomePage> {
             style: TextStyle(color: Colors.white60, fontSize: 13),
           ),
         ],
+      ),
+    );
+  }
+}
+
+
+class PeriodCatButton extends StatefulWidget {
+  final bool isPeriodStarted;
+  final VoidCallback onTap;
+
+  const PeriodCatButton({
+    super.key,
+    required this.isPeriodStarted,
+    required this.onTap,
+  });
+
+  @override
+  State<PeriodCatButton> createState() => _PeriodCatButtonState();
+}
+
+class _PeriodCatButtonState extends State<PeriodCatButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _cloudController;
+  late final Timer _eyeTimer;
+
+  int _eyeIndex = 0;
+
+  final List<String> _catFrames = [
+    'assets/images/period_cat/default.png',
+    'assets/images/period_cat/left.png',
+    'assets/images/period_cat/default.png',
+    'assets/images/period_cat/up.png',
+    'assets/images/period_cat/default.png',
+    'assets/images/period_cat/right.png',
+    'assets/images/period_cat/default.png',
+    'assets/images/period_cat/down.png',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+
+    _cloudController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3000),
+    )..repeat(reverse: true);
+
+    _eyeTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) {
+      if (!mounted) return;
+      setState(() {
+        _eyeIndex = (_eyeIndex + 1) % _catFrames.length;
+      });
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // preload images to prevent flicker
+    for (final frame in _catFrames) {
+      precacheImage(AssetImage(frame), context);
+    }
+
+    precacheImage(
+      const AssetImage('assets/images/period_cat/cloud.png'),
+      context,
+    );
+  }
+
+  @override
+  void dispose() {
+    _cloudController.dispose();
+    _eyeTimer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onTap,
+      behavior: HitTestBehavior.translucent,
+      child: SizedBox(
+        width: 170,
+        height: 190,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.bottomCenter,
+          children: [
+            // CLOUD FLOAT
+            AnimatedBuilder(
+              animation: _cloudController,
+              builder: (context, child) {
+                final moveY =
+                    -14 * Curves.easeInOut.transform(_cloudController.value);
+
+                return Positioned(
+                  top: moveY,
+                  right: 5,
+                  bottom: -25,
+                  child: Image.asset(
+                    'assets/images/period_cat/cloud.png',
+                    height: 150,
+                    width: 150,
+                    fit: BoxFit.contain,
+                  ),
+                );
+              },
+            ),
+
+            // CAT
+            Positioned(
+              bottom: 0,
+              right: 0,
+              child: IndexedStack(
+                index: _eyeIndex,
+                children: _catFrames.map((frame) {
+                  return Image.asset(
+                    frame,
+                    width: 155,
+                    fit: BoxFit.contain,
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
