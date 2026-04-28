@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 void main() {
@@ -12,13 +14,29 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Mēnesis',
-      home: const EditProfileScreen(),
+      home: EditProfileScreen(),
     );
   }
 }
 
 class EditProfileScreen extends StatelessWidget {
-  const EditProfileScreen({super.key});
+  EditProfileScreen({super.key});
+
+  final TextEditingController fnameController = TextEditingController();
+  final TextEditingController miController = TextEditingController();
+  final TextEditingController lnameController = TextEditingController();
+
+  void updateName(String fname, String mi, String lname) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'first name': fname,
+        'middle initial': mi,
+        'last name': lname
+      });
+    }
+  }
 
   // Reusable input decoration for text fields
   InputDecoration _inputDecoration(String hint) {
@@ -190,6 +208,7 @@ class EditProfileScreen extends StatelessWidget {
                                         ? Column(
                                       children: [
                                         TextField(
+                                          controller: fnameController,
                                           decoration:
                                           _inputDecoration(
                                             "First Name",
@@ -198,6 +217,7 @@ class EditProfileScreen extends StatelessWidget {
                                         const SizedBox(height: 12),
                                         TextField(
                                           maxLength: 1,
+                                          controller: miController,
                                           decoration:
                                           _inputDecoration(
                                             "M.I.",
@@ -207,6 +227,7 @@ class EditProfileScreen extends StatelessWidget {
                                         ),
                                         const SizedBox(height: 12),
                                         TextField(
+                                          controller: lnameController,
                                           decoration:
                                           _inputDecoration(
                                             "Surname",
@@ -219,6 +240,7 @@ class EditProfileScreen extends StatelessWidget {
                                         Expanded(
                                           flex: 4,
                                           child: TextField(
+                                            controller: fnameController,
                                             decoration:
                                             _inputDecoration(
                                               "First Name",
@@ -230,6 +252,7 @@ class EditProfileScreen extends StatelessWidget {
                                           flex: 2,
                                           child: TextField(
                                             maxLength: 1,
+                                            controller: miController,
                                             decoration:
                                             _inputDecoration(
                                               "M.I.",
@@ -242,6 +265,7 @@ class EditProfileScreen extends StatelessWidget {
                                         Expanded(
                                           flex: 4,
                                           child: TextField(
+                                            controller: lnameController,
                                             decoration:
                                             _inputDecoration(
                                               "Surname",
@@ -283,7 +307,43 @@ class EditProfileScreen extends StatelessWidget {
                                       ),
                                       elevation: 0,
                                     ),
-                                    onPressed: () {},
+                                    onPressed: () {
+                                      updateName(fnameController.text, miController.text, lnameController.text);
+                                      showDialog(
+                                        context: context, 
+                                        barrierDismissible: false,
+                                        builder: (BuildContext builderContext) {
+                                          Future.delayed(const Duration(seconds: 1), () {
+                                            if (Navigator.of(builderContext).canPop()) {
+                                              Navigator.pop(context);
+                                              Navigator.of(builderContext).pop();
+                                            }
+                                          });
+                                          return AlertDialog(
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(22),
+                                            ),
+                                            backgroundColor: const Color(0xFFFFFBFC),
+                                            title: const Text(
+                                              "Edit Profile",
+                                              style: TextStyle(
+                                                fontFamily: 'CormorantGaramond',
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.w600,
+                                                color: Color(0xFF3A1F3D),
+                                                ),
+                                              ),
+                                              content: Text(
+                                                "New Name Saved!",
+                                                style: TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.black54,
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      );
+                                    },
                                     child: const Text(
                                       "Update My Profile",
                                       textAlign: TextAlign.center,
