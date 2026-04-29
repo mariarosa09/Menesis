@@ -52,8 +52,14 @@ class _HomePageState extends State<HomePage> {
   // Holds the current local time, updated by the timer
   DateTime _now = DateTime.now().toLocal();
 
+  // Holds the days left until next cycle and period
+  int? daysUntilNextCycle;
+
   // The three screens mapped to each bottom nav tab
   late final List<Widget> _pages;
+
+  // Holds the name of the user
+  String? name;
 
   // ─────────────────────────────────────────────
   // INIT STATE
@@ -74,6 +80,9 @@ class _HomePageState extends State<HomePage> {
     _timer = Timer.periodic(const Duration(minutes: 1), (_) {
       setState(() => _now = DateTime.now().toLocal());
     });
+
+    nextCycleDays();
+    getUserName();
   }
 
   // ─────────────────────────────────────────────
@@ -159,6 +168,24 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  /*void getUserName() async {
+    final user = FirebaseAuth.instance.currentUser; 
+    if (user != null) {
+      DocumentSnapshot userInfo = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (mounted) {
+        if (userInfo['first name'] == "") {
+          setState(() {
+            name = userInfo['username'];
+          });
+        }
+        else {
+          setState(() {
+            name = userInfo['first name'];
+          });
+        }
+      }
+    }
+  }*/
   Future<String?> getUserName() async {
     String? authUid = FirebaseAuth.instance.currentUser?.uid;
     DocumentSnapshot user = await FirebaseFirestore.instance.collection('users').doc(authUid).get();
@@ -169,6 +196,56 @@ class _HomePageState extends State<HomePage> {
       return user['first name'];
     }
   }
+
+  Future<int?> nextCycleDays() async {
+    String? authUid = FirebaseAuth.instance.currentUser?.uid;
+    DocumentSnapshot user = await FirebaseFirestore.instance.collection('cycle').doc(authUid).get();
+    if (user['emptyRecord'] as bool) {
+      return 0;
+    }
+    else {
+      // Get latest record
+      CollectionReference history = FirebaseFirestore.instance.collection('cycle').doc(authUid).collection('cycle history');
+      final QuerySnapshot latest = await history.orderBy('start date', descending: true).limit(1).get();
+      String latestId = latest.docs.first.id;
+
+      // Get the previous cycle's length
+      DocumentSnapshot userCycleHistory = await FirebaseFirestore.instance.collection('cycle').doc(authUid).collection('cycle history').doc(latestId).get();
+      final periodEnd = (userCycleHistory['end date'] as Timestamp).toDate();
+      Duration daysLeft = (periodEnd.difference(_now)) + Duration(days: 1);
+      return daysLeft.inDays;
+    }
+  }
+
+  /*void nextCycleDays() async {
+    final user = FirebaseAuth.instance.currentUser;  
+
+    if (user != null) {
+      // Empty record check
+      DocumentSnapshot userRecord = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).get();
+      if (mounted) {
+        if (userRecord['emptyRecord'] as bool) {
+          setState(() {
+            daysUntilNextCycle = 0;
+          });
+        }
+        else {
+          // Get latest record
+          CollectionReference history = FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('cycle history');
+          final QuerySnapshot latest = await history.orderBy('start date', descending: true).limit(1).get();
+          String latestId = latest.docs.first.id;
+
+          // Get the previous cycle's length
+          DocumentSnapshot userCycleHistory = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('cycle history').doc(latestId).get();
+          final periodEnd = (userCycleHistory['end date'] as Timestamp).toDate();
+          Duration daysLeft = (_now.difference(periodEnd)) + Duration(days: 1);
+          setState(() {
+            daysUntilNextCycle = daysLeft.inDays;
+          });
+        }
+      }
+    }
+  }*/
 
   // ─────────────────────────────────────────────
   // BUILD HOME CONTENT
@@ -209,6 +286,15 @@ class _HomePageState extends State<HomePage> {
                         fontWeight: FontWeight.w400,
                       ),
                     ),
+                    /*Text(
+                      'Hello, ${name ?? "User"}',
+                      style: TextStyle(
+                        fontFamily: "CormorantGaramond",
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF44222B),
+                      )
+                    ),*/
                     FutureBuilder(future: getUserName(),
                         builder: (context, snapshot) {
                           if(snapshot.connectionState == ConnectionState.done) {
@@ -435,27 +521,37 @@ class _HomePageState extends State<HomePage> {
             // Kunin ang: daysUntilNextCycle, daysUntilNextPeriod
             // The code should be placed here
 
-            Row(
-              children: [
-                Expanded(
-                  child: _countdownCard(
-                    'NEXT CYCLE',
-                    // TODO: (EDIT) Palitan ng '$daysUntilNextCycle'
-                    // The code should be placed here
-                    '05',
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _countdownCard(
-                    'NEXT PERIOD',
-                    // TODO: (EDIT) Palitan ng '$daysUntilNextPeriod'
-                    // The code should be placed here
-                    '05',
-                  ),
-                ),
-              ],
-            ),
+            FutureBuilder(
+              future: nextCycleDays(), 
+              builder: (builder, snapshot) {
+                if(snapshot.connectionState == ConnectionState.done) {
+                  daysUntilNextCycle = snapshot.data;
+                }
+                else {
+                  daysUntilNextCycle = 0;
+                }
+                return Row(
+                  children: [
+                    Expanded(
+                      child: _countdownCard(
+                        'NEXT CYCLE',
+                        // TODO: (EDIT) Palitan ng '$daysUntilNextCycle'
+                        // The code should be placed here
+                        daysUntilNextCycle.toString(),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _countdownCard(
+                        'NEXT PERIOD',
+                        // TODO: (EDIT) Palitan ng '$daysUntilNextPeriod'
+                        // The code should be placed here
+                        daysUntilNextCycle.toString(),
+                      ),
+                    ),
+                  ],
+                );
+              }),
 
             const SizedBox(height: 20),
 

@@ -67,6 +67,8 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
   String _logText  = '';
   String _noteText = '';
 
+  bool _isvalidDay = true;
+
   // TODO: (ADDING) I-store ang period log dates at predictions sa state o database.
   // Kapag nag-add ng period log, dapat may listahan ng mga petsa na naka-mark
   // bilang "period", "ovulation", o "fertile" para ma-display sa calendar.
@@ -101,7 +103,7 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
     _selectedMonth = DateTime(_today.year, _today.month);
     _selectedDate  = _today;
     getLogStatus();
-    getNotes();
+    getNotes(_selectedDate);
   }
 
   // ── Helper: Month Name & Date Formatter ─────────────────────
@@ -123,10 +125,12 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
     }
   }
 
-  void getNotes() async {
-    final user = FirebaseAuth.instance.currentUser;  
+  void getNotes(DateTime selectedDate) async {
+    final user = FirebaseAuth.instance.currentUser; 
+    DateTime date = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+ 
     if (user != null) {
-      DocumentSnapshot log = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('logs').doc(_selectedDate.toString()).get();
+      DocumentSnapshot log = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('logs').doc(date.toString()).get();
       if (mounted) {
         setState(() {
           if (log.exists) {
@@ -140,9 +144,9 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
     }
   }
 
-  void saveNotes() async {
+  void saveNotes(DateTime selectedDate) async {
     final user = FirebaseAuth.instance.currentUser;
-    DateTime date = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+    DateTime date = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
 
     if (user != null) {
       await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('logs').doc(date.toString()).set({
@@ -478,8 +482,8 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
       // Ang "Add Period Log" button sa ibaba ng screen.
       // Pagpindot nito, dapat magbukas ng period log input form.
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFFAA556B),
-        onPressed: () {
+        backgroundColor: _isvalidDay ? Color(0xFFAA556B) : Colors.grey.shade400,
+        onPressed: _isvalidDay ? () {
           showDialog(
             context: context, 
             builder: (context) {
@@ -544,11 +548,11 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
               );
             }
           );
-        },
-        icon: const Icon(Icons.add, color: Colors.white),
+        } : null,
+        icon: Icon(Icons.add, color: _isvalidDay ? Colors.white : Colors.black54),
         label: Text(
           start ? "Start Period" : "End Period",
-          style: TextStyle(fontFamily: "DMSans", color: Colors.white),
+          style: TextStyle(fontFamily: "DMSans", color: _isvalidDay ? Colors.white : Colors.black54),
         ),
       ),
 
@@ -758,7 +762,7 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
                                   // May placeholder text kapag wala pang note.
                                   // Double tap anywhere on the note area to edit.
                                   GestureDetector(
-                                    onDoubleTap: () => _showEditDialog(
+                                    onTap: () => _showEditDialog(
                                       "Edit Note",
                                       _noteText,
                                           (val) => setState(() => _noteText = val),
@@ -777,7 +781,7 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
                                         child: Text(
                                           _noteText.isNotEmpty
                                               ? _noteText
-                                              : "Double tap to add note...",
+                                              : "Tap to add note...",
                                           style: TextStyle(
                                             fontSize: 12,
                                             fontFamily: 'Georgia',
@@ -834,18 +838,18 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
                               top: 2,
                               right: 15,
                               child: GestureDetector(
-                                onTap: () => _openDailyLog(_selectedDate),
+                                onTap: _isvalidDay ? () => _openDailyLog(_selectedDate) : null,
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
-                                    const Icon(Icons.add, size: 13, color: Colors.black),
+                                    Icon(Icons.add, size: 13, color: _isvalidDay ? Color(0xFFB56A7E) : Colors.black),
                                     const SizedBox(width: 3),
                                     Text(
                                       _logText.isEmpty ? "Add Log" : "Edit Log",
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontFamily: "CormorantGaramond",
-                                        color: Colors.black54,
+                                        color: _isvalidDay ? Color(0xFFB56A7E) : Colors.black54,
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
                                         height: 3,
@@ -916,6 +920,7 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
             ),
             onPressed: () {
               onSave(controller.text);
+              saveNotes(_selectedDate);
               Navigator.pop(ctx);
             },
             child: const Text("Save",
@@ -1029,7 +1034,15 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
   }
 
       return GestureDetector(
-          onTap: () => setState(() => _selectedDate = thisDay),
+          onTap: () {
+            getNotes(thisDay);
+            setState(() => _selectedDate = thisDay);
+            if (_selectedDate.isAfter(_today)) {
+              setState(() => _isvalidDay = false);
+            }
+            else {
+              setState(() => _isvalidDay = true);
+            }},
           onDoubleTap: () {
             setState(() => _selectedDate = thisDay);
             _openDailyLog(thisDay);

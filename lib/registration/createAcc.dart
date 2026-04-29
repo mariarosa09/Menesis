@@ -181,6 +181,19 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     }
   } 
 
+  void initialSetup() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await FirebaseFirestore.instance.collection('cycle').doc(user.uid).set({
+        'cycle type': 'Regular',
+        'cycle length': 28,
+        'period length': 3,
+        'status': true,
+        'emptyRecord': true
+      });
+    }
+  }
+
 // ============================================================
   // build() — Main UI
   // Nagtatayo ng buong Create Account screen.
@@ -194,6 +207,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     return BlocListener<AuthCubit, AuthState>(
       listener: (context, state) {
         if (state is Authenticated) {
+          initialSetup();
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const PeriodSetupScreen())

@@ -40,44 +40,73 @@ class MyApp extends StatelessWidget {
 /// Stateless kasi hindi nagbabago ang UI based sa user interaction
 /// dito mismo — ang data ay galing sa ibang source (database).
 /// =============================================
-class ManageProfileScreen extends StatelessWidget {
+class ManageProfileScreen extends StatefulWidget {
   const ManageProfileScreen({super.key});
 
-  Future<String?> getUserName() async {
+  @override
+  State<ManageProfileScreen> createState() => _ManageProfileScreenState();
+}
+
+class _ManageProfileScreenState extends State<ManageProfileScreen> {
+
+  @override
+  void initState() {
+    getUserName();
+    getUserEmail();
+    getPeriodLength();
+    getCycleLength();
+    super.initState();
+  }
+
+  String? name;
+  String? email;
+  String? periodLength;
+  String? cycleLength;
+
+  void getUserName() async {
     String? authUid = FirebaseAuth.instance.currentUser?.uid;
     DocumentSnapshot userName = await FirebaseFirestore.instance.collection('users').doc(authUid).get();
     if (userName['first name'] == "" && userName['middle initial'] == "" && userName['last name'] == "") {
-      return userName['username'];
+      setState(() {
+        name = userName['username'];
+      });
     }
     else if (userName['middle initial'] == "") {
-      String name = "${userName['first name']} ${userName['last name']}";
-      return name;
+      String username = "${userName['first name']} ${userName['last name']}";
+      setState(() {
+        name = username;
+      });
     }
     else {
-      String name = "${userName['first name']} ${userName['middle initial']}. ${userName['last name']}";
-      return name;
+      String username = "${userName['first name']} ${userName['middle initial']}. ${userName['last name']}";
+      setState(() {
+        name = username;
+      });
     }
   }
 
-  Future<String?> getUserEmail() async {
+  void getUserEmail() async {
     String? authUid = FirebaseAuth.instance.currentUser?.uid;
     DocumentSnapshot userEmail = await FirebaseFirestore.instance.collection('users').doc(authUid).get();
-    
-    return userEmail['email'];
+    setState(() {
+      email = userEmail['email'];
+    });
   }
 
-  Future<String?> getPeriodLength() async {
+  void getPeriodLength() async {
     String? authUid = FirebaseAuth.instance.currentUser?.uid;
     DocumentSnapshot userPeriod = await FirebaseFirestore.instance.collection('cycle').doc(authUid).get();
-    
-    return userPeriod['period length'].toString();
+    setState(() {
+      periodLength = userPeriod['period length'].toString();
+    });
   }
 
-  Future<String?> getCycleLength() async {
+  void getCycleLength() async {
     String? authUid = FirebaseAuth.instance.currentUser?.uid;
     DocumentSnapshot userCycle = await FirebaseFirestore.instance.collection('cycle').doc(authUid).get();
-    
-    return userCycle['cycle length'].toString();
+    setState(() {
+      cycleLength = userCycle['cycle length'].toString();
+    });
   }
 
   @override
@@ -192,21 +221,12 @@ class ManageProfileScreen extends StatelessWidget {
                           /// First Name + M.I. + Surname (mula sa registration).
                           /// -----------------------------------------------
 
-                          FutureBuilder(future:  getUserName(), 
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.done) {
-                                return Text(snapshot.data ?? "No username found",
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF3A1F3D),
-                                  ),
-                                );
-                              }
-                              else {
-                                return CircularProgressIndicator();
-                              }
-                            }
+                          Text(name ?? "User",
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF3A1F3D),
+                            ),
                           ),
 
                           const SizedBox(height: 5),
@@ -216,27 +236,11 @@ class ManageProfileScreen extends StatelessWidget {
                           /// Ipinapakita ang email ng user sa ilalim ng pangalan.
                           /// -----------------------------------------------
 
-                          FutureBuilder(future:  getUserEmail(), 
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.done) {
-                                return Text(
-                                  snapshot.data ?? "No email found!",
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.black45,
-                                  ),
-                                );
-                              }
-                              else {
-                                return Text(
-                                  "Loading!",
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.black45,
-                                  ),
-                                );
-                              }
-                            }
+                          Text(email ?? "user@email.com",
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.black45,
+                            ),
                           ),
 
                           const SizedBox(height: 18),
@@ -274,7 +278,7 @@ class ManageProfileScreen extends StatelessWidget {
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) =>
-                                    const EditProfileScreen(),
+                                    EditProfileScreen(),
                                   ),
                                 );
                               },
@@ -307,30 +311,11 @@ class ManageProfileScreen extends StatelessWidget {
                     title: "Menstrual Summary",
                     child: Column(
                       children: [
-                        FutureBuilder(
-                          future: getPeriodLength(),
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState == ConnectionState.done) {
-                              return _infoRow("Period Length", snapshot.data ?? "--");
-                            } 
-                            else {
-                              return _infoRow("Period Length", "--");
-                            }
-                          },
-                        ),
+                        _infoRow("Period Length", periodLength ?? "--"),
                         
                         AppDivider(),
-                        FutureBuilder(
-                          future: getCycleLength(),
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState == ConnectionState.done) {
-                              return _infoRow("Cycle Length", snapshot.data ?? "--");
-                            } 
-                            else {
-                              return _infoRow("Cycle Length", "--");
-                            }
-                          },
-                        ),
+                        
+                        _infoRow("Cycle Length", cycleLength ?? "--"),
                       ],
                     ),
                   ),

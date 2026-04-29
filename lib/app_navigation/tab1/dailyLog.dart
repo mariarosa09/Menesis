@@ -64,7 +64,7 @@ class _dailyLogState extends State<dailyLog> {
   void initState() {
     getSymptoms();
     getMood();
-    getSymptoms();
+    getDischarge();
     getNotes();
     super.initState();
   }
@@ -151,7 +151,7 @@ class _dailyLogState extends State<dailyLog> {
       if (mounted) {
         setState(() {
           if (log.exists) {
-            notesController.text = log['status'] ?? ""; 
+            notesController.text = log['notes'] ?? ""; 
           } 
           else {
             notesController.text = "";           
