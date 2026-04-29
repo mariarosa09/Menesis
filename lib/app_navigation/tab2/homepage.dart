@@ -107,6 +107,7 @@ class _HomePageState extends State<HomePage> {
   // caused "Good afternoon" to show until 6PM (18:00).
   // Now "Good evening" starts correctly at 18:00.
   // ─────────────────────────────────────────────
+
   String get _greeting {
     final hour = _now.hour;
     if (hour < 12) return 'Good morning';
@@ -214,6 +215,109 @@ class _HomePageState extends State<HomePage> {
       final periodEnd = (userCycleHistory['end date'] as Timestamp).toDate();
       Duration daysLeft = (periodEnd.difference(_now)) + Duration(days: 1);
       return daysLeft.inDays;
+    }
+  }
+
+  Future<int?> currentCycleDay() async {
+    String? authUid = FirebaseAuth.instance.currentUser?.uid;
+    DocumentSnapshot user = await FirebaseFirestore.instance.collection('cycle').doc(authUid).get();
+    if (user['emptyRecord'] as bool) {
+      return 0;
+    }
+    else {
+      // Get latest record
+      CollectionReference history = FirebaseFirestore.instance.collection('cycle').doc(authUid).collection('cycle history');
+      final QuerySnapshot latest = await history.orderBy('start date', descending: true).limit(1).get();
+      String latestId = latest.docs.first.id;
+
+      // Get the previous cycle's length
+      DocumentSnapshot userCycleHistory = await FirebaseFirestore.instance.collection('cycle').doc(authUid).collection('cycle history').doc(latestId).get();
+      final periodStart = (userCycleHistory['start date'] as Timestamp).toDate();
+      Duration dayInCycle = (_now.difference(periodStart)) + Duration(days: 1);
+
+      return dayInCycle.inDays;
+    }
+  }
+
+  Future<List<dynamic>> modifyCycleDisplay() async {
+    String? authUid = FirebaseAuth.instance.currentUser?.uid;
+    DocumentSnapshot user = await FirebaseFirestore.instance.collection('cycle').doc(authUid).get();
+    if (user['emptyRecord'] as bool) {
+      return [0, Color(0xFFFFFFFF)];
+    }
+    else {
+      double percent = 0;
+      Color cycleColor = Color(0xFFFFFFFF);
+      
+      // Get latest record
+      CollectionReference history = FirebaseFirestore.instance.collection('cycle').doc(authUid).collection('cycle history');
+      final QuerySnapshot latest = await history.orderBy('start date', descending: true).limit(1).get();
+      String latestId = latest.docs.first.id;
+
+      // Get the previous cycle's length
+      DocumentSnapshot userCycleHistory = await FirebaseFirestore.instance.collection('cycle').doc(authUid).collection('cycle history').doc(latestId).get();
+      final periodStart = (userCycleHistory['start date'] as Timestamp).toDate();
+      final periodEnd = (userCycleHistory['period end'] as Timestamp).toDate();
+      final fertileStart = (userCycleHistory['fertile start'] as Timestamp).toDate();
+      final fertileEnd = (userCycleHistory['fertile end'] as Timestamp).toDate();
+      final ovulation = (userCycleHistory['ovulation'] as Timestamp).toDate();
+
+      Duration dayInCycle = (_now.difference(periodStart)) + Duration(days: 1);
+      percent = dayInCycle.inDays / user['cycle length'];
+
+      if ((_now.isAfter(periodStart) || DateUtils.isSameDay(_now, periodStart)) && 
+        (_now.isBefore(periodEnd) || DateUtils.isSameDay(_now, periodEnd))) {
+        cycleColor = const Color(0xFFE57373);
+        }
+      else if (DateUtils.isSameDay(_now, ovulation)) {
+        cycleColor = const Color(0xFF6ED6A5);
+      }
+      else if ((_now.isAfter(fertileStart) || DateUtils.isSameDay(_now, fertileStart)) && 
+        (_now.isBefore(fertileEnd) || DateUtils.isSameDay(_now, fertileEnd))) {
+          cycleColor = const Color(0xFFFFD54F);
+        }
+      else {
+        cycleColor = const Color(0xFFFFFFFF);
+      }
+
+      return [percent, cycleColor];
+    }
+  }
+
+  Future<String?> getCycle() async {
+    String? authUid = FirebaseAuth.instance.currentUser?.uid;
+    DocumentSnapshot user = await FirebaseFirestore.instance.collection('cycle').doc(authUid).get();
+    if (user['emptyRecord'] as bool) {
+      return "Empty recod";
+    }
+    else {
+      // Get latest record
+      CollectionReference history = FirebaseFirestore.instance.collection('cycle').doc(authUid).collection('cycle history');
+      final QuerySnapshot latest = await history.orderBy('start date', descending: true).limit(1).get();
+      String latestId = latest.docs.first.id;
+
+      // Get the previous cycle's length
+      DocumentSnapshot userCycleHistory = await FirebaseFirestore.instance.collection('cycle').doc(authUid).collection('cycle history').doc(latestId).get();
+      final periodStart = (userCycleHistory['start date'] as Timestamp).toDate();
+      final periodEnd = (userCycleHistory['period end'] as Timestamp).toDate();
+      final fertileStart = (userCycleHistory['fertile start'] as Timestamp).toDate();
+      final fertileEnd = (userCycleHistory['fertile end'] as Timestamp).toDate();
+      final ovulation = (userCycleHistory['ovulation'] as Timestamp).toDate();
+    
+      if ((_now.isAfter(periodStart) || DateUtils.isSameDay(_now, periodStart)) && 
+        (_now.isBefore(periodEnd) || DateUtils.isSameDay(_now, periodEnd))) {
+          return "Period";
+        }
+      if (DateUtils.isSameDay(_now, ovulation)) {
+        return "Ovulation";
+      }
+      if ((_now.isAfter(fertileStart) || DateUtils.isSameDay(_now, fertileStart)) && 
+        (_now.isBefore(fertileEnd) || DateUtils.isSameDay(_now, fertileEnd))) {
+          return "Fertile";
+        }
+      else {
+        return "Follicular/Luteal";
+      }
     }
   }
 
@@ -445,49 +549,79 @@ class _HomePageState extends State<HomePage> {
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        SizedBox(
-                          width: 160,
-                          height: 160,
-                          child: CircularProgressIndicator(
-                            // TODO: (EDIT) Palitan ang `value: 0.65` ng
-                            // computed value mula sa cycle data.
-                            // Formula: currentDay / totalCycleDays
-                            // The code should be placed here
-                            value: 0.65,
-                            strokeWidth: 12,
-                            backgroundColor: Colors.white24,
-                            valueColor: const AlwaysStoppedAnimation(
-                                Color(0xFF6ED6A5)),
-                          ),
-                        ),
+                        FutureBuilder(future: modifyCycleDisplay(), 
+                        builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
+                          double percent = 0;
+                          Color cycleColor = Color(0xFFFFFFFF);
+                          if (snapshot.connectionState == ConnectionState.done) {
+                            percent = snapshot.data![0];
+                            cycleColor = snapshot.data![1];
+                          }
+                          return SizedBox(
+                            width: 160,
+                            height: 160,
+                            child: CircularProgressIndicator(
+                              // TODO: (EDIT) Palitan ang `value: 0.65` ng
+                              // computed value mula sa cycle data.
+                              // Formula: currentDay / totalCycleDays
+                              // The code should be placed here
+                              value: percent,
+                              strokeWidth: 12,
+                              backgroundColor: Colors.white24,
+                              valueColor: AlwaysStoppedAnimation(
+                                  cycleColor),
+                            ),
+                          );
+                        }),
 
                         // Text overlay in the center of the ring
-                        const Column(
+                        Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
-                              // TODO: (EDIT) Palitan ng dynamic na phase name
-                              // base sa computed cycle phase ng user.
-                              // The code should be placed here
-                              "Ovulation Phase",
-                              style: TextStyle(
-                                fontFamily: "DMSans",
-                                color: Color(0xFFF7F3F5),
-                                fontSize: 14,
-                              ),
-                            ),
-                            Text(
-                              // TODO: (EDIT) Palitan ng "Day $currentDay"
-                              // na galing sa actual cycle tracker ng user.
-                              // The code should be placed here
-                              "Day 15",
-                              style: TextStyle(
-                                fontFamily: "DMSans",
-                                color: Color(0xFFF7F3F5),
-                                fontSize: 30,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                            FutureBuilder(future: getCycle(), 
+                            builder: (builder, snapshot) {
+                              String? cycle;
+                              if (snapshot.connectionState == ConnectionState.done) {
+                                cycle = snapshot.data;
+                              }
+                              else{
+                                cycle = "Loading";
+                              }
+                              return Text(
+                                // TODO: (EDIT) Palitan ng dynamic na phase name
+                                // base sa computed cycle phase ng user.
+                                // The code should be placed here
+                                "$cycle Phase",
+                                style: TextStyle(
+                                  fontFamily: "DMSans",
+                                  color: Color(0xFFF7F3F5),
+                                  fontSize: 14,
+                                ),
+                              );
+                            }),
+                            FutureBuilder(future: currentCycleDay(),
+                             builder: (builder, snapshot) {
+                              int? cycleDay;
+                              if(snapshot.connectionState == ConnectionState.done) {
+                                cycleDay = snapshot.data;
+                              }
+                              else {
+                                cycleDay = 0;
+                              }
+                              return Text(
+                                // TODO: (EDIT) Palitan ng "Day $currentDay"
+                                // na galing sa actual cycle tracker ng user.
+                                // The code should be placed here
+                                "Day $cycleDay",
+                                style: TextStyle(
+                                  fontFamily: "DMSans",
+                                  color: Color(0xFFF7F3F5),
+                                  fontSize: 30,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                             }) 
+                             
                           ],
                         ),
                       ],
@@ -503,6 +637,7 @@ class _HomePageState extends State<HomePage> {
                       _legendDot(const Color(0xFFE57373), "PERIOD"),
                       _legendDot(const Color(0xFF6ED6A5), "OVULATION"),
                       _legendDot(const Color(0xFFFFD54F), "FERTILE"),
+                      _legendDot(const Color(0xFFFFFFFF), "FOLLICULAR/LUTEAL")
                     ],
                   ),
                 ],
