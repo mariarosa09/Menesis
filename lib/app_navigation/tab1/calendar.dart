@@ -298,6 +298,8 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
           'status': false,
           'emptyRecord': false
       }); 
+
+      int cycleLength = userData['cycle length'];
       
       // Get setting data for smart prediction
       DocumentSnapshot userSetting = await FirebaseFirestore.instance.collection('settings').doc(user.uid).get();
@@ -329,6 +331,7 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
           sumOfCycleLength += len;
         }
         int average = (sumOfCycleLength / numOfCycleLength).ceil();
+        cycleLength = average;
 
         // Update cycle length in the database
         await FirebaseFirestore.instance.collection('cycle').doc(user.uid).update({
@@ -350,7 +353,7 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
       
       // Get the average periodLength and cycleLength (on and off)
       int periodLength = userData['period length'];
-      int cycleLength = userData['cycle length'];
+      
 
       // Compute predictions (on and off)
       DateTime startDate = selectedDate;
@@ -369,9 +372,11 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
         'fertile end': fertileEnd,
         'ovulation': ovulation
       });
-      setState(() {
-        start = false;
-      });
+      if(mounted) {
+        setState(() {
+          start = false;
+        });
+      }
     }
   }
 
@@ -425,9 +430,11 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
       await history.doc(latestId).update({
         'period end': selectedDate,
       });
-      setState(() {
-        start = true;
-      });
+      if (mounted) {
+        setState(() {
+          start = true;
+        });
+      }
     }
   }
 

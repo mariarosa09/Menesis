@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -48,6 +50,8 @@ class ManageProfileScreen extends StatefulWidget {
 }
 
 class _ManageProfileScreenState extends State<ManageProfileScreen> {
+  StreamSubscription<DocumentSnapshot>? _userName;
+  StreamSubscription<DocumentSnapshot>? _userEmail;
 
   @override
   void initState() {
@@ -58,39 +62,76 @@ class _ManageProfileScreenState extends State<ManageProfileScreen> {
     super.initState();
   }
 
+  @override
+  void dispose() {
+    _userName?.cancel();
+    _userEmail?.cancel();
+    super.dispose();
+  }
+
   String? name;
   String? email;
   String? periodLength;
   String? cycleLength;
 
   void getUserName() async {
-    String? authUid = FirebaseAuth.instance.currentUser?.uid;
-    DocumentSnapshot userName = await FirebaseFirestore.instance.collection('users').doc(authUid).get();
-    if (userName['first name'] == "" && userName['middle initial'] == "" && userName['last name'] == "") {
-      setState(() {
-        name = userName['username'];
-      });
-    }
-    else if (userName['middle initial'] == "") {
-      String username = "${userName['first name']} ${userName['last name']}";
-      setState(() {
-        name = username;
-      });
-    }
-    else {
-      String username = "${userName['first name']} ${userName['middle initial']}. ${userName['last name']}";
-      setState(() {
-        name = username;
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      _userName = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .snapshots()
+          .listen((DocumentSnapshot userInfo) {
+
+        final data = userInfo.data() as Map<String, dynamic>?;
+
+        if (data != null && mounted) {
+          if (userInfo['first name'] == "" && userInfo['middle initial'] == "" && userInfo['last name'] == "") {
+            setState(() {
+              name = userInfo['username'];
+            });
+          }
+          else if (userInfo['middle initial'] == "") {
+            String username = "${userInfo['first name']} ${userInfo['last name']}";
+            if(mounted) {
+              setState(() {
+                name = username;
+              });
+            }
+          }
+          else {
+            String username = "${userInfo['first name']} ${userInfo['middle initial']}. ${userInfo['last name']}";
+            if (mounted) {
+              setState(() {
+                name = username;
+              });
+            }
+          }
+        }
       });
     }
   }
 
   void getUserEmail() async {
-    String? authUid = FirebaseAuth.instance.currentUser?.uid;
-    DocumentSnapshot userEmail = await FirebaseFirestore.instance.collection('users').doc(authUid).get();
-    setState(() {
-      email = userEmail['email'];
-    });
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      _userEmail = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .snapshots()
+          .listen((DocumentSnapshot userInfo) {
+
+        final data = userInfo.data() as Map<String, dynamic>?;
+
+        if (data != null && mounted) {
+          setState(() {
+            email = data['email'];
+          });
+        }
+      });
+    }
   }
 
   void getPeriodLength() async {
