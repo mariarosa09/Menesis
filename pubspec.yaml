@@ -44,6 +44,7 @@ dependencies:
 
 
 dev_dependencies:
+  flutter_launcher_icons: ^0.13.1
   flutter_test:
     sdk: flutter
 
@@ -54,6 +55,11 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/menesheesh.png"
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
@@ -61,6 +67,7 @@ dev_dependencies:
 flutter:
   assets:
     - assets/images/logo.png
+    - assets/images/menesheesh.png
 
     - assets/images/watery.png
     - assets/images/red.png
