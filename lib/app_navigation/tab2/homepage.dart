@@ -243,10 +243,10 @@ class _HomePageState extends State<HomePage> {
     String? authUid = FirebaseAuth.instance.currentUser?.uid;
     DocumentSnapshot user = await FirebaseFirestore.instance.collection('cycle').doc(authUid).get();
     if (user['emptyRecord'] as bool) {
-      return [0, Color(0xFFFFFFFF)];
+      return [0.0, Color(0xFFFFFFFF)];
     }
     else {
-      double percent = 0;
+      double percent = 0.0;
       Color cycleColor = Color(0xFFFFFFFF);
       
       // Get latest record
@@ -288,7 +288,7 @@ class _HomePageState extends State<HomePage> {
     String? authUid = FirebaseAuth.instance.currentUser?.uid;
     DocumentSnapshot user = await FirebaseFirestore.instance.collection('cycle').doc(authUid).get();
     if (user['emptyRecord'] as bool) {
-      return "Empty recod";
+      return "Empty Record";
     }
     else {
       // Get latest record
