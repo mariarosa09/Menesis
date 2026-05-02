@@ -243,12 +243,12 @@ class _HomePageState extends State<HomePage> {
     String? authUid = FirebaseAuth.instance.currentUser?.uid;
     DocumentSnapshot user = await FirebaseFirestore.instance.collection('cycle').doc(authUid).get();
     if (user['emptyRecord'] as bool) {
-      return [0.0, Color(0xFFFFFFFF)];
+      return [0, Color(0xFFFFFFFF)];
     }
     else {
-      double percent = 0.0;
+      double percent = 0;
       Color cycleColor = Color(0xFFFFFFFF);
-      
+
       // Get latest record
       CollectionReference history = FirebaseFirestore.instance.collection('cycle').doc(authUid).collection('cycle history');
       final QuerySnapshot latest = await history.orderBy('start date', descending: true).limit(1).get();
@@ -265,17 +265,17 @@ class _HomePageState extends State<HomePage> {
       Duration dayInCycle = (_now.difference(periodStart)) + Duration(days: 1);
       percent = dayInCycle.inDays / user['cycle length'];
 
-      if ((_now.isAfter(periodStart) || DateUtils.isSameDay(_now, periodStart)) && 
-        (_now.isBefore(periodEnd) || DateUtils.isSameDay(_now, periodEnd))) {
+      if ((_now.isAfter(periodStart) || DateUtils.isSameDay(_now, periodStart)) &&
+          (_now.isBefore(periodEnd) || DateUtils.isSameDay(_now, periodEnd))) {
         cycleColor = const Color(0xFFE57373);
-        }
+      }
       else if (DateUtils.isSameDay(_now, ovulation)) {
         cycleColor = const Color(0xFF6ED6A5);
       }
-      else if ((_now.isAfter(fertileStart) || DateUtils.isSameDay(_now, fertileStart)) && 
-        (_now.isBefore(fertileEnd) || DateUtils.isSameDay(_now, fertileEnd))) {
-          cycleColor = const Color(0xFFFFD54F);
-        }
+      else if ((_now.isAfter(fertileStart) || DateUtils.isSameDay(_now, fertileStart)) &&
+          (_now.isBefore(fertileEnd) || DateUtils.isSameDay(_now, fertileEnd))) {
+        cycleColor = const Color(0xFFFFD54F);
+      }
       else {
         cycleColor = const Color(0xFFFFFFFF);
       }
@@ -288,7 +288,7 @@ class _HomePageState extends State<HomePage> {
     String? authUid = FirebaseAuth.instance.currentUser?.uid;
     DocumentSnapshot user = await FirebaseFirestore.instance.collection('cycle').doc(authUid).get();
     if (user['emptyRecord'] as bool) {
-      return "Empty Record";
+      return "Empty recod";
     }
     else {
       // Get latest record
@@ -303,18 +303,18 @@ class _HomePageState extends State<HomePage> {
       final fertileStart = (userCycleHistory['fertile start'] as Timestamp).toDate();
       final fertileEnd = (userCycleHistory['fertile end'] as Timestamp).toDate();
       final ovulation = (userCycleHistory['ovulation'] as Timestamp).toDate();
-    
-      if ((_now.isAfter(periodStart) || DateUtils.isSameDay(_now, periodStart)) && 
-        (_now.isBefore(periodEnd) || DateUtils.isSameDay(_now, periodEnd))) {
-          return "Period";
-        }
+
+      if ((_now.isAfter(periodStart) || DateUtils.isSameDay(_now, periodStart)) &&
+          (_now.isBefore(periodEnd) || DateUtils.isSameDay(_now, periodEnd))) {
+        return "Period";
+      }
       if (DateUtils.isSameDay(_now, ovulation)) {
         return "Ovulation";
       }
-      if ((_now.isAfter(fertileStart) || DateUtils.isSameDay(_now, fertileStart)) && 
-        (_now.isBefore(fertileEnd) || DateUtils.isSameDay(_now, fertileEnd))) {
-          return "Fertile";
-        }
+      if ((_now.isAfter(fertileStart) || DateUtils.isSameDay(_now, fertileStart)) &&
+          (_now.isBefore(fertileEnd) || DateUtils.isSameDay(_now, fertileEnd))) {
+        return "Fertile";
+      }
       else {
         return "Follicular/Luteal";
       }
@@ -322,7 +322,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   /*void nextCycleDays() async {
-    final user = FirebaseAuth.instance.currentUser;  
+    final user = FirebaseAuth.instance.currentUser;
 
     if (user != null) {
       // Empty record check
@@ -549,79 +549,79 @@ class _HomePageState extends State<HomePage> {
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        FutureBuilder(future: modifyCycleDisplay(), 
-                        builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
-                          double percent = 0;
-                          Color cycleColor = Color(0xFFFFFFFF);
-                          if (snapshot.connectionState == ConnectionState.done) {
-                            percent = snapshot.data![0];
-                            cycleColor = snapshot.data![1];
-                          }
-                          return SizedBox(
-                            width: 160,
-                            height: 160,
-                            child: CircularProgressIndicator(
-                              // TODO: (EDIT) Palitan ang `value: 0.65` ng
-                              // computed value mula sa cycle data.
-                              // Formula: currentDay / totalCycleDays
-                              // The code should be placed here
-                              value: percent,
-                              strokeWidth: 12,
-                              backgroundColor: Colors.white24,
-                              valueColor: AlwaysStoppedAnimation(
-                                  cycleColor),
-                            ),
-                          );
-                        }),
+                        FutureBuilder(future: modifyCycleDisplay(),
+                            builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
+                              double percent = 0;
+                              Color cycleColor = Color(0xFFFFFFFF);
+                              if (snapshot.connectionState == ConnectionState.done) {
+                                percent = snapshot.data![0];
+                                cycleColor = snapshot.data![1];
+                              }
+                              return SizedBox(
+                                width: 160,
+                                height: 160,
+                                child: CircularProgressIndicator(
+                                  // TODO: (EDIT) Palitan ang `value: 0.65` ng
+                                  // computed value mula sa cycle data.
+                                  // Formula: currentDay / totalCycleDays
+                                  // The code should be placed here
+                                  value: percent,
+                                  strokeWidth: 12,
+                                  backgroundColor: Colors.white24,
+                                  valueColor: AlwaysStoppedAnimation(
+                                      cycleColor),
+                                ),
+                              );
+                            }),
 
                         // Text overlay in the center of the ring
                         Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            FutureBuilder(future: getCycle(), 
-                            builder: (builder, snapshot) {
-                              String? cycle;
-                              if (snapshot.connectionState == ConnectionState.done) {
-                                cycle = snapshot.data;
-                              }
-                              else{
-                                cycle = "Loading";
-                              }
-                              return Text(
-                                // TODO: (EDIT) Palitan ng dynamic na phase name
-                                // base sa computed cycle phase ng user.
-                                // The code should be placed here
-                                "$cycle Phase",
-                                style: TextStyle(
-                                  fontFamily: "DMSans",
-                                  color: Color(0xFFF7F3F5),
-                                  fontSize: 14,
-                                ),
-                              );
-                            }),
+                            FutureBuilder(future: getCycle(),
+                                builder: (builder, snapshot) {
+                                  String? cycle;
+                                  if (snapshot.connectionState == ConnectionState.done) {
+                                    cycle = snapshot.data;
+                                  }
+                                  else{
+                                    cycle = "Loading";
+                                  }
+                                  return Text(
+                                    // TODO: (EDIT) Palitan ng dynamic na phase name
+                                    // base sa computed cycle phase ng user.
+                                    // The code should be placed here
+                                    "$cycle Phase",
+                                    style: TextStyle(
+                                      fontFamily: "DMSans",
+                                      color: Color(0xFFF7F3F5),
+                                      fontSize: 14,
+                                    ),
+                                  );
+                                }),
                             FutureBuilder(future: currentCycleDay(),
-                             builder: (builder, snapshot) {
-                              int? cycleDay;
-                              if(snapshot.connectionState == ConnectionState.done) {
-                                cycleDay = snapshot.data;
-                              }
-                              else {
-                                cycleDay = 0;
-                              }
-                              return Text(
-                                // TODO: (EDIT) Palitan ng "Day $currentDay"
-                                // na galing sa actual cycle tracker ng user.
-                                // The code should be placed here
-                                "Day $cycleDay",
-                                style: TextStyle(
-                                  fontFamily: "DMSans",
-                                  color: Color(0xFFF7F3F5),
-                                  fontSize: 30,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              );
-                             }) 
-                             
+                                builder: (builder, snapshot) {
+                                  int? cycleDay;
+                                  if(snapshot.connectionState == ConnectionState.done) {
+                                    cycleDay = snapshot.data;
+                                  }
+                                  else {
+                                    cycleDay = 0;
+                                  }
+                                  return Text(
+                                    // TODO: (EDIT) Palitan ng "Day $currentDay"
+                                    // na galing sa actual cycle tracker ng user.
+                                    // The code should be placed here
+                                    "Day $cycleDay",
+                                    style: TextStyle(
+                                      fontFamily: "DMSans",
+                                      color: Color(0xFFF7F3F5),
+                                      fontSize: 30,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  );
+                                })
+
                           ],
                         ),
                       ],
@@ -657,36 +657,36 @@ class _HomePageState extends State<HomePage> {
             // The code should be placed here
 
             FutureBuilder(
-              future: nextCycleDays(), 
-              builder: (builder, snapshot) {
-                if(snapshot.connectionState == ConnectionState.done) {
-                  daysUntilNextCycle = snapshot.data;
-                }
-                else {
-                  daysUntilNextCycle = 0;
-                }
-                return Row(
-                  children: [
-                    Expanded(
-                      child: _countdownCard(
-                        'NEXT CYCLE',
-                        // TODO: (EDIT) Palitan ng '$daysUntilNextCycle'
-                        // The code should be placed here
-                        daysUntilNextCycle.toString(),
+                future: nextCycleDays(),
+                builder: (builder, snapshot) {
+                  if(snapshot.connectionState == ConnectionState.done) {
+                    daysUntilNextCycle = snapshot.data;
+                  }
+                  else {
+                    daysUntilNextCycle = 0;
+                  }
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: _countdownCard(
+                          'NEXT CYCLE',
+                          // TODO: (EDIT) Palitan ng '$daysUntilNextCycle'
+                          // The code should be placed here
+                          daysUntilNextCycle.toString(),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _countdownCard(
-                        'NEXT PERIOD',
-                        // TODO: (EDIT) Palitan ng '$daysUntilNextPeriod'
-                        // The code should be placed here
-                        daysUntilNextCycle.toString(),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _countdownCard(
+                          'NEXT PERIOD',
+                          // TODO: (EDIT) Palitan ng '$daysUntilNextPeriod'
+                          // The code should be placed here
+                          daysUntilNextCycle.toString(),
+                        ),
                       ),
-                    ),
-                  ],
-                );
-              }),
+                    ],
+                  );
+                }),
 
             const SizedBox(height: 20),
 
@@ -757,8 +757,8 @@ class _HomePageState extends State<HomePage> {
               right: 0,
               bottom: 0,
               child: PeriodCatButton(
-                isPeriodStarted: false, // temporary la pa logic
-                onTap: () {},
+                isPeriodStarted: false,
+                onTap: () {}, // add logic
               ),
             ),
         ],
@@ -957,20 +957,48 @@ class _PeriodCatButtonState extends State<PeriodCatButton>
                     -14 * Curves.easeInOut.transform(_cloudController.value);
 
                 return Positioned(
-                  top: moveY,
+                  top: 35,
                   right: 5,
-                  bottom: -25,
-                  child: Image.asset(
-                    'assets/images/period_cat/cloud.png',
-                    height: 150,
-                    width: 150,
-                    fit: BoxFit.contain,
+                  child: Transform.translate(
+                    offset: Offset(0, moveY),
+                    child: SizedBox(
+                      height: 150,
+                      width: 150,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Image.asset(
+                            'assets/images/period_cat/cloud.png',
+                            fit: BoxFit.contain,
+                          ),
+
+                          Positioned(
+                            top: 24,
+                            left: 17,
+                            right: 28,
+                            child: Text(
+                              widget.isPeriodStarted
+                                  ? "Period Ends?\nTap Me"
+                                  : "Period Starts?\nTap Me",
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontFamily: "CormorantGaramond",
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                height: 1.0,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 );
               },
             ),
 
-            // CAT
+            // CATTTTT
             Positioned(
               bottom: 0,
               right: 0,
