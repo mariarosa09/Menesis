@@ -66,25 +66,11 @@ flutter_icons:
 # The following section is specific to Flutter packages.
 flutter:
   assets:
-    - assets/images/logo.png
-    - assets/images/menesheesh.png
-
-    - assets/images/watery.png
-    - assets/images/red.png
-    - assets/images/pink.png
-    - assets/images/milky_white.png
-    - assets/images/green.png
-    - assets/images/gray.png
-    - assets/images/clear.png
-    - assets/images/brown.png
-    - assets/images/bright_yellow.png
-
-    - assets/images/period_cat/default.png
-    - assets/images/period_cat/left.png
-    - assets/images/period_cat/right.png
-    - assets/images/period_cat/up.png
-    - assets/images/period_cat/down.png
-    - assets/images/period_cat/cloud.png
+    - assets/images/
+    - assets/images/discharge_icon/
+    - assets/images/period_cat/
+    - assets/images/reasons_icon/
+    - assets/images/remedy_icon/
 
 
   fonts:

@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 
 class dailyLog extends StatefulWidget {
   final DateTime selectedDate;
+  final void Function(String logSummary)? onSaved;
 
-  const dailyLog({super.key, required this.selectedDate});
+  const dailyLog({super.key, required this.selectedDate, this.onSaved});
 
   @override
   State<dailyLog> createState() => _dailyLogState();
@@ -36,126 +37,202 @@ class _dailyLogState extends State<dailyLog> {
     {"label": "Diarrhea", "icon": "💩"},
   ];
 
+  // FIX 1: " Discharge" appended to every label
   final List<Map<String, String>> dischargeTypes = [
-    {"label": "Clear/Transparent", "icon": "assets/images/clear.png"},
-    {"label": "Milky White", "icon": "assets/images/milky_white.png"},
-    {"label": "Gray", "icon": "assets/images/gray.png"},
-    {"label": "Bright Yellow", "icon": "assets/images/bright_yellow.png"},
-    {"label": "Green", "icon": "assets/images/green.png"},
-    {"label": "Pink", "icon": "assets/images/pink.png"},
-    {"label": "Red", "icon": "assets/images/red.png"},
-    {"label": "Brown", "icon": "assets/images/brown.png"},
-    {"label": "Watery", "icon": "assets/images/watery.png"},
+    {"label": "Clear/Transparent Discharge", "icon": "assets/images/discharge_icon/clear.png"},
+    {"label": "Milky White Discharge",        "icon": "assets/images/discharge_icon/milky_white.png"},
+    {"label": "Gray Discharge",               "icon": "assets/images/discharge_icon/gray.png"},
+    {"label": "Bright Yellow Discharge",      "icon": "assets/images/discharge_icon/bright_yellow.png"},
+    {"label": "Green Discharge",              "icon": "assets/images/discharge_icon/green.png"},
+    {"label": "Pink Discharge",               "icon": "assets/images/discharge_icon/pink.png"},
+    {"label": "Red Discharge",                "icon": "assets/images/discharge_icon/red.png"},
+    {"label": "Brown Discharge",              "icon": "assets/images/discharge_icon/brown.png"},
+    {"label": "Watery Discharge",             "icon": "assets/images/discharge_icon/watery.png"},
   ];
 
-  Set<String> selectedMoods = {};
-  Set<String> selectedSymptoms = {};
-  Set<String> selectedDischarge = {};
+  Set<String> selectedMoods      = {};
+  Set<String> selectedSymptoms   = {};
+  Set<String> selectedDischarge  = {};
 
   final TextEditingController notesController = TextEditingController();
-  
-  @override
-  void dispose() {
-    notesController.dispose();
-    super.dispose();
-  }
+  // FIX 3: focus node so we can scroll the notes field into view
+  final FocusNode _notesFocusNode = FocusNode();
+
+  Map<String, String> get _symptomEmoji => {
+    for (final s in symptoms) s["label"]!: s["icon"]!
+  };
+  Map<String, String> get _moodEmoji => {
+    for (final m in moods) m["label"]!: m["icon"]!
+  };
+  // FIX 2 (shared): map label → asset path for summary builder
+  Map<String, String> get _dischargeIcon => {
+    for (final d in dischargeTypes) d["label"]!: d["icon"]!
+  };
 
   @override
   void initState() {
+    super.initState();
     getSymptoms();
     getMood();
     getDischarge();
     getNotes();
-    super.initState();
+  }
+
+  @override
+  void dispose() {
+    notesController.dispose();
+    _notesFocusNode.dispose();
+    super.dispose();
+  }
+
+  String _buildLogSummary() {
+    final parts = <String>[];
+
+    if (selectedSymptoms.isNotEmpty) {
+      final icons = selectedSymptoms
+          .map((s) => '${_symptomEmoji[s] ?? ''} $s')
+          .join('  ·  ');
+      parts.add('Symptoms\n$icons');
+    }
+
+    if (selectedMoods.isNotEmpty) {
+      final icons = selectedMoods
+          .map((m) => '${_moodEmoji[m] ?? ''} $m')
+          .join('  ·  ');
+      parts.add('Mood\n$icons');
+    }
+
+    if (selectedDischarge.isNotEmpty) {
+      // FIX 2: encode as "assetPath|label" so the calendar can render the image
+      final icons = selectedDischarge.map((label) {
+        final path = _dischargeIcon[label] ?? '';
+        return path.isNotEmpty ? '$path|$label' : label;
+      }).join('  ·  ');
+      parts.add('Discharge\n$icons');
+    }
+
+    return parts.join('\n\n');
   }
 
   void saveLog() async {
     final user = FirebaseAuth.instance.currentUser;
-    DateTime date = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
+    final date = DateTime(
+      widget.selectedDate.year,
+      widget.selectedDate.month,
+      widget.selectedDate.day,
+    );
 
     if (user != null) {
-      await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('logs').doc(date.toString()).set({
-        'log date': date,
-        'physical symptoms': selectedSymptoms,
-        'mood': selectedMoods,
-        'discharge': selectedDischarge,
-        'notes': notesController.text.trim(),
-      },
-      SetOptions(merge: true));
+      await FirebaseFirestore.instance
+          .collection('cycle')
+          .doc(user.uid)
+          .collection('logs')
+          .doc(date.toString())
+          .set({
+        'log date':          date,
+        'physical symptoms': selectedSymptoms.toList(),
+        'mood':              selectedMoods.toList(),
+        'discharge':         selectedDischarge.toList(),
+        'notes':             notesController.text.trim(),
+      }, SetOptions(merge: true));
+
+      widget.onSaved?.call(_buildLogSummary());
     }
   }
 
   void getSymptoms() async {
-    final user = FirebaseAuth.instance.currentUser;  
-    DateTime date = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
+    final user = FirebaseAuth.instance.currentUser;
+    final date = DateTime(
+      widget.selectedDate.year,
+      widget.selectedDate.month,
+      widget.selectedDate.day,
+    );
 
     if (user != null) {
-      DocumentSnapshot log = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('logs').doc(date.toString()).get();
+      final log = await FirebaseFirestore.instance
+          .collection('cycle')
+          .doc(user.uid)
+          .collection('logs')
+          .doc(date.toString())
+          .get();
       if (mounted) {
         setState(() {
-          if (log.exists) {
-            selectedSymptoms = (log['physical symptoms'] as List?)?.cast<String>().toSet() ?? {};
-          } 
-          else {
-            selectedSymptoms = {};
-          }
+          selectedSymptoms = log.exists
+              ? (log['physical symptoms'] as List?)?.cast<String>().toSet() ?? {}
+              : {};
         });
       }
     }
   }
 
   void getMood() async {
-    final user = FirebaseAuth.instance.currentUser;  
-    DateTime date = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
+    final user = FirebaseAuth.instance.currentUser;
+    final date = DateTime(
+      widget.selectedDate.year,
+      widget.selectedDate.month,
+      widget.selectedDate.day,
+    );
 
     if (user != null) {
-      DocumentSnapshot log = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('logs').doc(date.toString()).get();
+      final log = await FirebaseFirestore.instance
+          .collection('cycle')
+          .doc(user.uid)
+          .collection('logs')
+          .doc(date.toString())
+          .get();
       if (mounted) {
         setState(() {
-          if (log.exists) {
-            selectedMoods = (log['mood'] as List?)?.cast<String>().toSet() ?? {};
-          } 
-          else {
-            selectedMoods = {};
-          }
-          });
+          selectedMoods = log.exists
+              ? (log['mood'] as List?)?.cast<String>().toSet() ?? {}
+              : {};
+        });
       }
     }
   }
 
   void getDischarge() async {
-    final user = FirebaseAuth.instance.currentUser;  
-    DateTime date = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
+    final user = FirebaseAuth.instance.currentUser;
+    final date = DateTime(
+      widget.selectedDate.year,
+      widget.selectedDate.month,
+      widget.selectedDate.day,
+    );
 
     if (user != null) {
-      DocumentSnapshot log = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('logs').doc(date.toString()).get();
+      final log = await FirebaseFirestore.instance
+          .collection('cycle')
+          .doc(user.uid)
+          .collection('logs')
+          .doc(date.toString())
+          .get();
       if (mounted) {
         setState(() {
-          if (log.exists) {
-            selectedDischarge = (log['discharge'] as List?)?.cast<String>().toSet() ?? {};
-          } 
-          else {
-            selectedDischarge = {};
-          }
-          });
+          selectedDischarge = log.exists
+              ? (log['discharge'] as List?)?.cast<String>().toSet() ?? {}
+              : {};
+        });
       }
     }
   }
 
   void getNotes() async {
-    final user = FirebaseAuth.instance.currentUser; 
-    DateTime date = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
- 
+    final user = FirebaseAuth.instance.currentUser;
+    final date = DateTime(
+      widget.selectedDate.year,
+      widget.selectedDate.month,
+      widget.selectedDate.day,
+    );
+
     if (user != null) {
-      DocumentSnapshot log = await FirebaseFirestore.instance.collection('cycle').doc(user.uid).collection('logs').doc(date.toString()).get();
+      final log = await FirebaseFirestore.instance
+          .collection('cycle')
+          .doc(user.uid)
+          .collection('logs')
+          .doc(date.toString())
+          .get();
       if (mounted) {
         setState(() {
-          if (log.exists) {
-            notesController.text = log['notes'] ?? ""; 
-          } 
-          else {
-            notesController.text = "";           
-          }
+          notesController.text = log.exists ? (log['notes'] ?? '') : '';
         });
       }
     }
@@ -164,7 +241,13 @@ class _dailyLogState extends State<dailyLog> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        10,
+        20,
+        // FIX 3: push content up by the keyboard height when it's visible
+        MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -363,9 +446,22 @@ class _dailyLogState extends State<dailyLog> {
           ),
           const SizedBox(height: 10),
 
+          // FIX 3: ScrollIntoView so the keyboard never hides the notes field
           TextField(
             controller: notesController,
+            focusNode: _notesFocusNode,
             maxLines: 3,
+            onTap: () {
+              // Give the keyboard time to appear, then scroll to the field
+              Future.delayed(const Duration(milliseconds: 300), () {
+                Scrollable.ensureVisible(
+                  _notesFocusNode.context!,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                  alignment: 0.9,
+                );
+              });
+            },
             decoration: InputDecoration(
               hintText: "Any other details...",
               hintStyle: const TextStyle(fontFamily: "DMSans"),
@@ -397,7 +493,7 @@ class _dailyLogState extends State<dailyLog> {
               onPressed: () {
                 saveLog();
                 showDialog(
-                  context: context, 
+                  context: context,
                   barrierDismissible: false,
                   builder: (BuildContext builderContext) {
                     Future.delayed(const Duration(seconds: 1), () {
@@ -418,17 +514,17 @@ class _dailyLogState extends State<dailyLog> {
                           fontSize: 22,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF3A1F3D),
-                          ),
                         ),
-                        content: Text(
-                          "Log Saved!",
-                          style: TextStyle(
+                      ),
+                      content: const Text(
+                        "Log Saved!",
+                        style: TextStyle(
                           fontSize: 14,
                           color: Colors.black54,
                         ),
                       ),
                     );
-                  }
+                  },
                 );
               },
               child: const Text(
@@ -451,18 +547,8 @@ class _dailyLogState extends State<dailyLog> {
 
   String _formatDate(DateTime date) {
     const months = [
-      "January",
-      "February",
-      "March",
-      "April",
-      "May",
-      "June",
-      "July",
-      "August",
-      "September",
-      "October",
-      "November",
-      "December"
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
     ];
     return "${months[date.month - 1]} ${date.day}, ${date.year}";
   }

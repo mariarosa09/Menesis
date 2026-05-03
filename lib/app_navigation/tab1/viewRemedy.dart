@@ -1,42 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-void main() {
-  runApp(
-    MaterialApp(
-      title: 'Remedy Suggestions',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF7F3F5),
-        fontFamily: 'DMSans',
-      ),
-      home: const RemedySuggestionsScreen(),
-    ),
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════
-//  DATA MODEL
-//  Defines the structure of a single remedy entry.
-//  Each remedy has a title and a short description (2–3 sentences).
-// ══════════════════════════════════════════════════════════════════
-
+// ─────────────────────────────────────────────
+// DATA MODEL — Remedy
+// ─────────────────────────────────────────────
 class Remedy {
   final String title;
   final String description;
   const Remedy({required this.title, required this.description});
 }
 
-// ══════════════════════════════════════════════════════════════════
-//  ICON MAP
-//  Maps each symptom/mood/discharge label to its display icon.
-//  Emoji strings are shown inline; asset paths starting with
-//  'assets/' are loaded as images via Image.asset().
-// ══════════════════════════════════════════════════════════════════
-
+// ─────────────────────────────────────────────
+// ICON MAP
+// Keys must match EXACTLY what dailyLog.dart saves to Firestore.
+// Maps each symptom/discharge label to either:
+//   - An emoji string (e.g., '🔄'), OR
+//   - A local asset path (e.g., 'assets/images/pink.png')
+// ─────────────────────────────────────────────
 const Map<String, String> _iconMap = {
-  // Mood icons
+  // MOOD
   'Mood Swing' : '🔄',
   'Irritable'  : '😠',
   'Sad'        : '😢',
@@ -45,75 +27,107 @@ const Map<String, String> _iconMap = {
   'Happy'      : '😊',
   'Impatient'  : '😤',
   'Inspired'   : '✨',
-  // Physical symptom icons
-  'Cramps'           : '🤕',
-  'Headaches'        : '🤯',
-  'Nausea'           : '🤢',
-  'Bloating'         : '😖',
-  'Breast Tenderness': '💢',
-  'Breakouts'        : '😬',
-  'Cravings'         : '🍫',
-  'Stress'           : '😫',
-  'Constipation'     : '🚫',
-  'Diarrhea'         : '💩',
-  // Discharge icons — using local asset images
-  'Pink Discharge'              : 'assets/images/pink.png',
-  'Clear/Transparent Discharge' : 'assets/images/clear.png',
-  'Milky White Discharge'       : 'assets/images/milky_white.png',
-  'Gray Discharge'              : 'assets/images/gray.png',
-  'Bright Yellow Discharge'     : 'assets/images/bright_yellow.png',
-  'Green Discharge'             : 'assets/images/green.png',
-  'Red Discharge'               : 'assets/images/red.png',
-  'Brown Discharge'             : 'assets/images/brown.png',
-  'Watery Discharge'            : 'assets/images/watery.png',
+
+  // PHYSICAL SYMPTOMS
+  'Cramps'            : '🤕',
+  'Headaches'         : '🤯',
+  'Nausea'            : '🤢',
+  'Bloating'          : '😖',
+  'Breast Tenderness' : '💢',
+  'Breakouts'         : '😬',
+  'Cravings'          : '🍫',
+  'Stress'            : '😫',
+  'Constipation'      : '🚫',
+  'Diarrhea'          : '💩',
+
+  // DISCHARGE — keys match dailyLog.dart labels exactly
+  'Pink'              : 'assets/images/discharge_icon/pink.png',
+  'Clear/Transparent' : 'assets/images/discharge_icon/clear.png',
+  'Milky White'       : 'assets/images/discharge_icon/milky_white.png',
+  'Gray'              : 'assets/images/discharge_icon/gray.png',
+  'Bright Yellow'     : 'assets/images/discharge_icon/bright_yellow.png',
+  'Green'             : 'assets/images/discharge_icon/green.png',
+  'Red'               : 'assets/images/discharge_icon/red.png',
+  'Brown'             : 'assets/images/discharge_icon/brown.png',
+  'Watery'            : 'assets/images/discharge_icon/watery.png',
 };
 
-// ══════════════════════════════════════════════════════════════════
-//  REMEDY DATABASE
-//  Static local map of remedies keyed by symptom/mood/discharge.
-//  Each entry holds a list of Remedy objects to display as cards.
-//
-//  TODO: Palitan ito ng real database fetch (e.g., Firestore o REST API)
-//  para dynamic ang mga remedy na lalabas depende sa logged symptoms.
-//  The code should be placed here
-// ══════════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────
+// REMEDY ICON MAP
+// Maps each remedy title to a local asset image.
+// ─────────────────────────────────────────────
+const Map<String, String> _remedyIconMap = {
+  'Get Enough Rest and Sleep'                         : 'assets/images/remedy_icon/Get_Enough_Rest_And_Sleep.png',
+  'Stay Physically Active with Light Exercise'        : 'assets/images/remedy_icon/Light_Exercise.png',
+  'Practice Deep Breathing'                           : 'assets/images/remedy_icon/Practice_Deep_Breathing.png',
+  'Stay Hydrated'                                     : 'assets/images/remedy_icon/Stay_Hydrated.png',
+  'Eat Healthy, Balanced Meals'                       : 'assets/images/remedy_icon/Eat_Healthy_Balanced_Meals.png',
+  'Limit Caffeine Intake'                             : 'assets/images/remedy_icon/Limit_Caffeine_Intake.png',
+  'Communicate'                                       : 'assets/images/remedy_icon/Communicate.png',
+  'Get Sunlight Exposure'                             : 'assets/images/remedy_icon/Get_Sunlight_Exposure.png',
+  'Use Warm or Cold Compress'                         : 'assets/images/remedy_icon/Use_Warm_Or_Cold_Compress.png',
+  'Take Mild Pain Relievers'                          : 'assets/images/remedy_icon/Pain_Reliever.png',
+  'Wear a Comfortable Bra'                            : 'assets/images/remedy_icon/Wear_A_Comfortable_Bra.png',
+  'Maintain Proper Skincare and Avoid Touching Your Face' : 'assets/images/remedy_icon/Maintain_Proper_Skincare.png',
+  'Maintain Proper Hygiene'                           : 'assets/images/remedy_icon/Maintain_Proper_Hygiene.png',
+  'Monitor Changes in Your Body'                      : 'assets/images/remedy_icon/Monitor_Changes_In_Your_Body.png',
+  'Consult a Doctor or Seek Medical Attention'        : 'assets/images/remedy_icon/Consult_Doctor.png',
+  'Eat High-Fiber Foods'                              : 'assets/images/remedy_icon/Eat_High_Fiber_Foods.png',
+  'Reduce Salty, Sugary, and Greasy Foods'            : 'assets/images/remedy_icon/Reduce_Greasy_Foods.png',
+  'No Action Needed'                                  : 'assets/images/remedy_icon/No_Action_Needed.png',
+};
 
+// ─────────────────────────────────────────────
+// REMEDY DATABASE
+// ─────────────────────────────────────────────
 const Map<String, List<Remedy>> remedyDatabase = {
 
-  // ── MOODS ──────────────────────────────────────────────────────
+  // ── MOOD ──────────────────────────────────────────────────────
   'Mood Swing': [
     Remedy(
       title: 'Get Enough Rest and Sleep',
       description:
-      'Aim for 7–9 hours of quality sleep. Hormonal fluctuations that cause mood swings are often worsened by fatigue — consistent rest helps stabilise your emotional responses.',
+      'Sleep for at least 7–9 hours each night to help your body recover and reduce fatigue. '
+          'Take breaks during the day and avoid overworking yourself when feeling tired.',
     ),
     Remedy(
       title: 'Practice Deep Breathing',
       description:
-      'Try box breathing (inhale 4s, hold 4s, exhale 4s, hold 4s). Slow, controlled breathing activates the parasympathetic nervous system, helping to smooth out sudden emotional shifts.',
+      'Take slow, deep breaths for a few minutes when feeling stressed or emotional. '
+          'This can help calm your mind and reduce tension.',
     ),
     Remedy(
       title: 'Communicate',
       description:
-      'Let people around you know how you are feeling. Expressing your emotions openly reduces internal tension and helps others offer the right support during mood changes.',
+      'Talk to someone you trust about how you feel if symptoms are affecting your mood. '
+          'Emotional support can help reduce stress and make you feel better.',
     ),
   ],
 
-  'Anxious': [
-    Remedy(
-      title: 'Practice Deep Breathing',
-      description:
-      'Box breathing or 4-7-8 breathing can calm an anxious mind within minutes by slowing your heart rate and signalling safety to your nervous system.',
-    ),
+  'Irritable': [
     Remedy(
       title: 'Get Enough Rest and Sleep',
       description:
-      'Anxiety and poor sleep feed each other. Prioritise a consistent sleep schedule and a wind-down routine to reduce the baseline level of anxiety throughout the day.',
+      'Sleep for at least 7–9 hours each night to help your body recover and reduce fatigue. '
+          'Take breaks during the day and avoid overworking yourself when feeling tired.',
+    ),
+    Remedy(
+      title: 'Practice Deep Breathing',
+      description:
+      'Take slow, deep breaths for a few minutes when feeling stressed or emotional. '
+          'This can help calm your mind and reduce tension.',
+    ),
+    Remedy(
+      title: 'Stay Physically Active with Light Exercise',
+      description:
+      'Do light activities like walking, stretching, or yoga to improve blood flow and reduce discomfort. '
+          'Avoid intense exercise if your body feels weak or sore.',
     ),
     Remedy(
       title: 'Communicate',
       description:
-      'Talking through your worries with someone you trust can help you gain perspective and feel less alone. Even journalling your thoughts can provide significant relief.',
+      'Talk to someone you trust about how you feel if symptoms are affecting your mood. '
+          'Emotional support can help reduce stress and make you feel better.',
     ),
   ],
 
@@ -121,54 +135,174 @@ const Map<String, List<Remedy>> remedyDatabase = {
     Remedy(
       title: 'Get Enough Rest and Sleep',
       description:
-      'Low mood and sadness are often deepened by poor sleep. Create a calming bedtime routine — dim lights, no screens 30 minutes before bed — to improve sleep quality.',
+      'Sleep for at least 7–9 hours each night to help your body recover and reduce fatigue. '
+          'Take breaks during the day and avoid overworking yourself when feeling tired.',
     ),
     Remedy(
       title: 'Communicate',
       description:
-      'Reach out to a trusted friend, family member, or counsellor. Sharing how you feel breaks the cycle of isolation that often makes sadness feel heavier than it is.',
+      'Talk to someone you trust about how you feel if symptoms are affecting your mood. '
+          'Emotional support can help reduce stress and make you feel better.',
     ),
     Remedy(
       title: 'Get Sunlight Exposure',
       description:
-      'Spend at least 15–20 minutes outdoors in natural light each day. Sunlight boosts serotonin production, which is directly linked to mood regulation and a sense of wellbeing.',
+      'Spend a little time outside each day for natural sunlight. '
+          'Sunlight can improve mood and support overall well-being.',
     ),
   ],
 
-  // ── PHYSICAL SYMPTOMS ──────────────────────────────────────────
-  'Cramps': [
+  'Anxious': [
     Remedy(
-      title: 'Use Warm or Cold Compress',
+      title: 'Practice Deep Breathing',
       description:
-      'Apply a warm heating pad or hot water bottle to your lower abdomen for 15–20 minutes. Heat relaxes uterine muscles and increases blood flow, reducing cramping pain.',
-    ),
-    Remedy(
-      title: 'Take Mild Pain Relievers',
-      description:
-      'Over-the-counter anti-inflammatories such as ibuprofen can reduce prostaglandins — the compounds responsible for uterine cramping. Always follow the recommended dosage.',
-    ),
-    Remedy(
-      title: 'Stay Physically Active with Light Exercise',
-      description:
-      'Gentle movement like walking or yoga stimulates blood flow and releases endorphins that act as natural pain relievers, helping to ease the severity of cramps.',
-    ),
-  ],
-
-  'Headaches': [
-    Remedy(
-      title: 'Take Mild Pain Relievers',
-      description:
-      'Ibuprofen or paracetamol can effectively relieve hormonal headaches when taken at the onset of symptoms. Follow the recommended dose and avoid overuse.',
+      'Take slow, deep breaths for a few minutes when feeling stressed or emotional. '
+          'This can help calm your mind and reduce tension.',
     ),
     Remedy(
       title: 'Get Enough Rest and Sleep',
       description:
-      'Fatigue is a major headache trigger. Resting in a quiet, dark room at the first sign of a headache can significantly reduce its severity and duration.',
+      'Sleep for at least 7–9 hours each night to help your body recover and reduce fatigue. '
+          'Take breaks during the day and avoid overworking yourself when feeling tired.',
+    ),
+    Remedy(
+      title: 'Communicate',
+      description:
+      'Talk to someone you trust about how you feel if symptoms are affecting your mood. '
+          'Emotional support can help reduce stress and make you feel better.',
+    ),
+  ],
+
+  'Confident': [
+    Remedy(
+      title: 'No Action Needed',
+      description:
+      'Some symptoms are mild and normal, requiring only observation. '
+          'Continue daily activities while monitoring your body.',
+    ),
+  ],
+
+  'Happy': [
+    Remedy(
+      title: 'No Action Needed',
+      description:
+      'Some symptoms are mild and normal, requiring only observation. '
+          'Continue daily activities while monitoring your body.',
+    ),
+  ],
+
+  'Impatient': [
+    Remedy(
+      title: 'Get Enough Rest and Sleep',
+      description:
+      'Sleep for at least 7–9 hours each night to help your body recover and reduce fatigue. '
+          'Take breaks during the day and avoid overworking yourself when feeling tired.',
+    ),
+    Remedy(
+      title: 'Practice Deep Breathing',
+      description:
+      'Take slow, deep breaths for a few minutes when feeling stressed or emotional. '
+          'This can help calm your mind and reduce tension.',
+    ),
+  ],
+
+  'Inspired': [
+    Remedy(
+      title: 'No Action Needed',
+      description:
+      'Some symptoms are mild and normal, requiring only observation. '
+          'Continue daily activities while monitoring your body.',
+    ),
+  ],
+
+  // ── PHYSICAL SYMPTOMS ─────────────────────────────────────────
+  'Cramps': [
+    Remedy(
+      title: 'Use Warm or Cold Compress',
+      description:
+      'Apply a heating pad or warm towel to ease cramps and muscle pain. '
+          'A cold compress may also help reduce swelling or discomfort.',
+    ),
+    Remedy(
+      title: 'Take Mild Pain Relievers',
+      description:
+      'Use over-the-counter pain medicine if needed and as directed. '
+          'This can help manage cramps, headaches, or body pain.',
+    ),
+    Remedy(
+      title: 'Stay Physically Active with Light Exercise',
+      description:
+      'Do light activities like walking, stretching, or yoga to improve blood flow and reduce discomfort. '
+          'Avoid intense exercise if your body feels weak or sore.',
+    ),
+  ],
+
+  'Breast Tenderness': [
+    Remedy(
+      title: 'Wear a Comfortable Bra',
+      description:
+      'Choose a supportive but non-tight bra to reduce breast discomfort. '
+          'Soft fabrics may feel more comfortable during tenderness.',
     ),
     Remedy(
       title: 'Stay Hydrated',
       description:
-      'Dehydration is one of the most common causes of headaches. Aim for at least 8 glasses of water daily and increase intake during your period when the body loses more fluid.',
+      'Drink plenty of water throughout the day to prevent dehydration and bloating. '
+          'Keep a water bottle nearby as a reminder.',
+    ),
+    Remedy(
+      title: 'Get Enough Rest and Sleep',
+      description:
+      'Sleep for at least 7–9 hours each night to help your body recover and reduce fatigue. '
+          'Take breaks during the day and avoid overworking yourself when feeling tired.',
+    ),
+  ],
+
+  'Stress': [
+    Remedy(
+      title: 'Practice Deep Breathing',
+      description:
+      'Take slow, deep breaths for a few minutes when feeling stressed or emotional. '
+          'This can help calm your mind and reduce tension.',
+    ),
+    Remedy(
+      title: 'Get Enough Rest and Sleep',
+      description:
+      'Sleep for at least 7–9 hours each night to help your body recover and reduce fatigue. '
+          'Take breaks during the day and avoid overworking yourself when feeling tired.',
+    ),
+    Remedy(
+      title: 'Stay Physically Active with Light Exercise',
+      description:
+      'Do light activities like walking, stretching, or yoga to improve blood flow and reduce discomfort. '
+          'Avoid intense exercise if your body feels weak or sore.',
+    ),
+    Remedy(
+      title: 'Communicate',
+      description:
+      'Talk to someone you trust about how you feel if symptoms are affecting your mood. '
+          'Emotional support can help reduce stress and make you feel better.',
+    ),
+  ],
+
+  'Nausea': [
+    Remedy(
+      title: 'Eat Healthy, Balanced Meals',
+      description:
+      'Choose nutritious foods like fruits, vegetables, whole grains, and lean proteins. '
+          'Eat gentle, easy-to-digest meals if your stomach feels sensitive.',
+    ),
+    Remedy(
+      title: 'Stay Hydrated',
+      description:
+      'Drink plenty of water throughout the day to prevent dehydration and bloating. '
+          'Keep a water bottle nearby as a reminder.',
+    ),
+    Remedy(
+      title: 'Limit Caffeine Intake',
+      description:
+      'Reduce coffee, energy drinks, and sugary sodas to help prevent anxiety, bloating, or breast tenderness. '
+          'Choose water or herbal tea instead.',
     ),
   ],
 
@@ -176,170 +310,377 @@ const Map<String, List<Remedy>> remedyDatabase = {
     Remedy(
       title: 'Eat High-Fiber Foods',
       description:
-      'Foods like oats, leafy greens, and legumes support digestive regularity and help reduce the gas build-up that causes bloating. Introduce fibre gradually to avoid discomfort.',
+      'Include fruits, vegetables, and whole grains in your meals to support digestion. '
+          'Fiber can help reduce bloating and constipation.',
     ),
     Remedy(
       title: 'Reduce Salty, Sugary, and Greasy Foods',
       description:
-      'Salt causes water retention, sugar feeds gas-producing gut bacteria, and greasy foods slow digestion — all of which worsen bloating. Cutting back provides noticeable relief.',
+      'Cut back on processed snacks and unhealthy foods to lessen bloating and discomfort. '
+          'Choose healthier alternatives when possible.',
     ),
     Remedy(
       title: 'Stay Hydrated',
       description:
-      'Drinking plenty of water helps flush out excess sodium and supports healthy digestion, both of which directly reduce bloating and abdominal discomfort.',
+      'Drink plenty of water throughout the day to prevent dehydration and bloating. '
+          'Keep a water bottle nearby as a reminder.',
     ),
   ],
 
-  // ── DISCHARGE ──────────────────────────────────────────────────
-  'Pink Discharge': [
+  'Cravings': [
+    Remedy(
+      title: 'Eat Healthy, Balanced Meals',
+      description:
+      'Choose nutritious foods like fruits, vegetables, whole grains, and lean proteins. '
+          'Eat gentle, easy-to-digest meals if your stomach feels sensitive.',
+    ),
+    Remedy(
+      title: 'Stay Hydrated',
+      description:
+      'Drink plenty of water throughout the day to prevent dehydration and bloating. '
+          'Keep a water bottle nearby as a reminder.',
+    ),
+  ],
+
+  'Breakouts': [
+    Remedy(
+      title: 'Maintain Proper Skincare and Avoid Touching Your Face',
+      description:
+      'Wash your face regularly with gentle products to reduce oil buildup. '
+          'Avoid touching or picking at your skin to prevent irritation.',
+    ),
+    Remedy(
+      title: 'Stay Hydrated',
+      description:
+      'Drink plenty of water throughout the day to prevent dehydration and bloating. '
+          'Keep a water bottle nearby as a reminder.',
+    ),
+  ],
+
+  'Headaches': [
+    Remedy(
+      title: 'Take Mild Pain Relievers',
+      description:
+      'Use over-the-counter pain medicine if needed and as directed. '
+          'This can help manage cramps, headaches, or body pain.',
+    ),
+    Remedy(
+      title: 'Get Enough Rest and Sleep',
+      description:
+      'Sleep for at least 7–9 hours each night to help your body recover and reduce fatigue. '
+          'Take breaks during the day and avoid overworking yourself when feeling tired.',
+    ),
+    Remedy(
+      title: 'Stay Hydrated',
+      description:
+      'Drink plenty of water throughout the day to prevent dehydration and bloating. '
+          'Keep a water bottle nearby as a reminder.',
+    ),
+  ],
+
+  'Constipation': [
+    Remedy(
+      title: 'Eat High-Fiber Foods',
+      description:
+      'Include fruits, vegetables, and whole grains in your meals to support digestion. '
+          'Fiber can help reduce bloating and constipation.',
+    ),
+    Remedy(
+      title: 'Stay Hydrated',
+      description:
+      'Drink plenty of water throughout the day to prevent dehydration and bloating. '
+          'Keep a water bottle nearby as a reminder.',
+    ),
+  ],
+
+  'Diarrhea': [
+    Remedy(
+      title: 'Eat High-Fiber Foods',
+      description:
+      'Include gentle, easy-to-digest fiber sources like bananas, rice, and plain toast to help firm up stools. '
+          'Avoid high-fat or heavily spiced foods until symptoms subside.',
+    ),
+    Remedy(
+      title: 'Stay Hydrated',
+      description:
+      'Drink plenty of water throughout the day to prevent dehydration and bloating. '
+          'Keep a water bottle nearby as a reminder.',
+    ),
+  ],
+
+  // ── DISCHARGE ─────────────────────────────────────────────────
+  'Clear/Transparent': [
+    Remedy(
+      title: 'No Action Needed',
+      description:
+      'Some symptoms are mild and normal, requiring only observation. '
+          'Continue daily activities while monitoring your body.',
+    ),
+  ],
+
+  'Milky White': [
     Remedy(
       title: 'Monitor Changes in Your Body',
       description:
-      'Pink discharge can indicate light spotting, which may be normal around ovulation or implantation. Track when it occurs in your cycle and note any accompanying symptoms.',
+      'Pay attention to unusual symptoms, pain, or changes in discharge. '
+          'Tracking symptoms can help you better understand your cycle.',
+    ),
+  ],
+
+  'Bright Yellow': [
+    Remedy(
+      title: 'Monitor Changes in Your Body',
+      description:
+      'Pay attention to unusual symptoms, pain, or changes in discharge. '
+          'Tracking symptoms can help you better understand your cycle.',
     ),
     Remedy(
       title: 'Maintain Proper Hygiene',
       description:
-      'Keep the area clean and dry. Use unscented liners if needed and change them regularly. Avoid irritants like scented soaps or synthetic fabrics close to the skin.',
+      'Change menstrual products regularly and keep your body clean to prevent irritation or infection. '
+          'Wear clean, breathable clothing.',
     ),
   ],
 
-  'Milky White Discharge': [
-    Remedy(
-      title: 'Monitor Changes in Your Body',
-      description:
-      'Milky white discharge is usually normal, especially around ovulation. Take note of any changes in smell, texture, or volume, and track them over a few cycle days.',
-    ),
-  ],
-
-  'Bright Yellow Discharge': [
-    Remedy(
-      title: 'Monitor Changes in Your Body',
-      description:
-      'Pale or light yellow discharge can be normal. However, if the colour is vivid or accompanied by itching or odour, keep a close record and consider seeking advice.',
-    ),
-    Remedy(
-      title: 'Maintain Proper Hygiene',
-      description:
-      'Keep the vaginal area clean using water or a mild, unscented wash. Wear breathable, cotton underwear and change them daily to reduce the risk of irritation or infection.',
-    ),
-  ],
-
-  'Green Discharge': [
+  'Green': [
     Remedy(
       title: 'Consult a Doctor or Seek Medical Attention',
       description:
-      'Green discharge is often a sign of bacterial or sexually transmitted infection. Do not delay — consult a healthcare provider as soon as possible for proper diagnosis and treatment.',
+      'See a healthcare professional if symptoms are severe, unusual, or do not improve. '
+          'Medical advice is important for persistent concerns.',
     ),
     Remedy(
       title: 'Maintain Proper Hygiene',
       description:
-      'While awaiting medical care, maintain gentle hygiene practices. Avoid douching or using scented products, as these can disrupt the vaginal flora and worsen the condition.',
+      'Change menstrual products regularly and keep your body clean to prevent irritation or infection. '
+          'Wear clean, breathable clothing.',
     ),
   ],
 
-  'Gray Discharge': [
+  'Gray': [
     Remedy(
       title: 'Consult a Doctor or Seek Medical Attention',
       description:
-      'Grey discharge, particularly with a fishy odour, is a common sign of bacterial vaginosis. This requires medical treatment — see a healthcare provider promptly.',
+      'See a healthcare professional if symptoms are severe, unusual, or do not improve. '
+          'Medical advice is important for persistent concerns.',
     ),
     Remedy(
       title: 'Maintain Proper Hygiene',
       description:
-      'Use mild, fragrance-free hygiene products and wear breathable cotton underwear. Avoid tight clothing that traps moisture, which can worsen bacterial imbalance.',
+      'Change menstrual products regularly and keep your body clean to prevent irritation or infection. '
+          'Wear clean, breathable clothing.',
     ),
   ],
 
-  'Red Discharge': [
-    Remedy(
-      title: 'Consult a Doctor or Seek Medical Attention',
-      description:
-      'Red discharge outside of your expected period could indicate spotting, infection, or another condition requiring evaluation. Seek medical advice, especially if heavy or prolonged.',
-    ),
-    Remedy(
-      title: 'Maintain Proper Hygiene',
-      description:
-      'Change pads, tampons, or menstrual products regularly. Keep the area clean and dry, and avoid scented products that may cause further irritation.',
-    ),
-  ],
-
-  'Brown Discharge': [
+  'Pink': [
     Remedy(
       title: 'Monitor Changes in Your Body',
       description:
-      'Brown discharge is usually old blood leaving the body and is often normal at the beginning or end of your period. Track its timing and consistency across cycles.',
+      'Pay attention to unusual symptoms, pain, or changes in discharge. '
+          'Tracking symptoms can help you better understand your cycle.',
     ),
     Remedy(
       title: 'Maintain Proper Hygiene',
       description:
-      'Change underwear and any sanitary products regularly. Keep the area clean with warm water, and consult a doctor if brown discharge occurs frequently outside your period.',
+      'Change menstrual products regularly and keep your body clean to prevent irritation or infection. '
+          'Wear clean, breathable clothing.',
+    ),
+  ],
+
+  'Red': [
+    Remedy(
+      title: 'Consult a Doctor or Seek Medical Attention',
+      description:
+      'See a healthcare professional if symptoms are severe, unusual, or do not improve. '
+          'Medical advice is important for persistent concerns.',
+    ),
+    Remedy(
+      title: 'Maintain Proper Hygiene',
+      description:
+      'Change menstrual products regularly and keep your body clean to prevent irritation or infection. '
+          'Wear clean, breathable clothing.',
+    ),
+  ],
+
+  'Brown': [
+    Remedy(
+      title: 'Monitor Changes in Your Body',
+      description:
+      'Pay attention to unusual symptoms, pain, or changes in discharge. '
+          'Tracking symptoms can help you better understand your cycle.',
+    ),
+    Remedy(
+      title: 'Maintain Proper Hygiene',
+      description:
+      'Change menstrual products regularly and keep your body clean to prevent irritation or infection. '
+          'Wear clean, breathable clothing.',
+    ),
+  ],
+
+  'Watery': [
+    Remedy(
+      title: 'Stay Hydrated',
+      description:
+      'Drink plenty of water throughout the day to prevent dehydration and bloating. '
+          'Keep a water bottle nearby as a reminder.',
+    ),
+    Remedy(
+      title: 'Maintain Proper Hygiene',
+      description:
+      'Change menstrual products regularly and keep your body clean to prevent irritation or infection. '
+          'Wear clean, breathable clothing.',
+    ),
+    Remedy(
+      title: 'Monitor Changes in Your Body',
+      description:
+      'Pay attention to unusual symptoms, pain, or changes in discharge. '
+          'Tracking symptoms can help you better understand your cycle.',
+    ),
+    Remedy(
+      title: 'Eat Healthy, Balanced Meals',
+      description:
+      'Choose nutritious foods like fruits, vegetables, whole grains, and lean proteins. '
+          'Eat gentle, easy-to-digest meals if your stomach feels sensitive.',
+    ),
+    Remedy(
+      title: 'Get Enough Rest and Sleep',
+      description:
+      'Sleep for at least 7–9 hours each night to help your body recover and reduce fatigue. '
+          'Take breaks during the day and avoid overworking yourself when feeling tired.',
+    ),
+    Remedy(
+      title: 'Stay Physically Active with Light Exercise',
+      description:
+      'Do light activities like walking, stretching, or yoga to improve blood flow and reduce discomfort. '
+          'Avoid intense exercise if your body feels weak or sore.',
+    ),
+    Remedy(
+      title: 'Limit Caffeine Intake',
+      description:
+      'Reduce coffee, energy drinks, and sugary sodas to help prevent anxiety, bloating, or breast tenderness. '
+          'Choose water or herbal tea instead.',
+    ),
+    Remedy(
+      title: 'Reduce Salty, Sugary, and Greasy Foods',
+      description:
+      'Cut back on processed snacks and unhealthy foods to lessen bloating and discomfort. '
+          'Choose healthier alternatives when possible.',
+    ),
+    Remedy(
+      title: 'Communicate',
+      description:
+      'Talk to someone you trust about how you feel if symptoms are affecting your mood. '
+          'Emotional support can help reduce stress and make you feel better.',
+    ),
+    Remedy(
+      title: 'No Action Needed',
+      description:
+      'Some symptoms are mild and normal, requiring only observation. '
+          'Continue daily activities while monitoring your body.',
     ),
   ],
 };
 
-// ══════════════════════════════════════════════════════════════════
-//  HARDCODED SAMPLE SELECTIONS
-//  Temporary placeholder data simulating what was logged today.
-//
-//  TODO: Palitan ito ng actual na data na galing sa daily log ng user
-//  (e.g., passed via constructor, provider, o retrieved from local DB).
-//  Dapat ang displayed symptoms at filters ay yung logged lang talaga.
-//  The code should be placed here
-// ══════════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────
+// REMEDY CARD STYLE HELPER
+// ─────────────────────────────────────────────
+({Color bg, Color accent, String emoji}) _remedyStyle(String title) {
+  final t = title.toLowerCase();
+  if (t.contains('rest') || t.contains('sleep'))
+    return (bg: const Color(0xFFF0EAF8), accent: const Color(0xFF7C5CBF), emoji: '🌙');
+  if (t.contains('exercise') || t.contains('active') || t.contains('sunlight'))
+    return (bg: const Color(0xFFE8F5E9), accent: const Color(0xFF2E7D32), emoji: '🏃');
+  if (t.contains('breathing'))
+    return (bg: const Color(0xFFE3F2FD), accent: const Color(0xFF1565C0), emoji: '🫁');
+  if (t.contains('hydrat'))
+    return (bg: const Color(0xFFE0F7FA), accent: const Color(0xFF006064), emoji: '💧');
+  if (t.contains('meal') || t.contains('fiber') || t.contains('salty') || t.contains('caffeine'))
+    return (bg: const Color(0xFFFFF8E1), accent: const Color(0xFFF57F17), emoji: '🥗');
+  if (t.contains('communicate'))
+    return (bg: const Color(0xFFFCE4EC), accent: const Color(0xFFAD1457), emoji: '💬');
+  if (t.contains('compress') || t.contains('pain reliev'))
+    return (bg: const Color(0xFFFFEBEE), accent: const Color(0xFFC62828), emoji: '🩹');
+  if (t.contains('bra'))
+    return (bg: const Color(0xFFFFF3E0), accent: const Color(0xFFE65100), emoji: '👙');
+  if (t.contains('skincare') || t.contains('face'))
+    return (bg: const Color(0xFFF3E5F5), accent: const Color(0xFF6A1B9A), emoji: '✨');
+  if (t.contains('hygiene'))
+    return (bg: const Color(0xFFE8F5E9), accent: const Color(0xFF1B5E20), emoji: '🚿');
+  if (t.contains('monitor'))
+    return (bg: const Color(0xFFFDE8F4), accent: const Color(0xFFB56A7E), emoji: '🔍');
+  if (t.contains('doctor') || t.contains('medical'))
+    return (bg: const Color(0xFFFFEBEB), accent: const Color(0xFFDC2626), emoji: '⚕️');
+  if (t.contains('no action'))
+    return (bg: const Color(0xFFE8FDF4), accent: const Color(0xFF059669), emoji: '✅');
+  return (bg: const Color(0xFFF2EDF3), accent: const Color(0xFF6B5B73), emoji: '💊');
+}
 
-const Set<String> _sampleMoods     = {'Mood Swing', 'Anxious', 'Sad'};
-const Set<String> _sampleSymptoms  = {'Cramps', 'Headaches', 'Bloating'};
-const Set<String> _sampleDischarge = {'Pink Discharge'};
+// ─────────────────────────────────────────────
+// INTERNAL VIEW MODEL — _RemedyCard
+// ─────────────────────────────────────────────
+class _RemedyCard {
+  final String remedyTitle;
+  final String remedyDescription;
+  final List<String> symptoms;
+  _RemedyCard({
+    required this.remedyTitle,
+    required this.remedyDescription,
+    required this.symptoms,
+  });
+}
 
-// ══════════════════════════════════════════════════════════════════
-//  SCREEN WIDGET
-//  Root stateful widget for the Remedy Suggestions screen.
-//  Uses a TabController to manage the filter tabs and a separate
-//  ScrollController for the remedy list and the tab row.
-// ══════════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────
+// HOW MANY CHIPS TO SHOW BEFORE COLLAPSING
+// ─────────────────────────────────────────────
+const int _kChipPreviewCount = 5;
 
+// ─────────────────────────────────────────────
+// MAIN SCREEN WIDGET
+// ─────────────────────────────────────────────
 class RemedySuggestionsScreen extends StatefulWidget {
-  const RemedySuggestionsScreen({super.key});
+  final List<String> loggedSymptoms;
+  final List<String> loggedMoods;
+  final List<String> loggedDischarge;
+
+  const RemedySuggestionsScreen({
+    super.key,
+    this.loggedSymptoms  = const [],
+    this.loggedMoods     = const [],
+    this.loggedDischarge = const [],
+  });
 
   @override
-  State<RemedySuggestionsScreen> createState() =>
-      _RemedySuggestionsScreenState();
+  State<RemedySuggestionsScreen> createState() => _RemedySuggestionsScreenState();
 }
 
 class _RemedySuggestionsScreenState extends State<RemedySuggestionsScreen>
     with SingleTickerProviderStateMixin {
 
-  // Controllers for tab switching, main list scroll, and horizontal tab scroll
   late final TabController _tabController;
   late final List<String> _tabs;
   final ScrollController _scrollController    = ScrollController();
   final ScrollController _tabScrollController = ScrollController();
 
-  // ── INIT ─────────────────────────────────────────────────────
-  // Builds the tab list from all logged symptoms that exist in
-  // the remedy database. "All" is always the first tab.
+  // ── NEW: tracks whether the chips section is expanded ──────────
+  bool _chipsExpanded = false;
+
+  List<String> get _allLogged => [
+    ...widget.loggedMoods,
+    ...widget.loggedSymptoms,
+    ...widget.loggedDischarge,
+  ];
+
   @override
   void initState() {
     super.initState();
-
-    // Collect only keys that have remedies in the database
-    final allSelected = [
-      ..._sampleMoods,
-      ..._sampleSymptoms,
-      ..._sampleDischarge,
-    ].where((key) => remedyDatabase.containsKey(key)).toList();
-
-    // "All" tab + one tab per logged symptom that has remedies
-    _tabs = ['All', ...allSelected];
-
-    // Rebuild UI whenever the active tab changes
+    final validKeys = _allLogged
+        .where((key) => remedyDatabase.containsKey(key))
+        .toList();
+    _tabs = ['All', ...validKeys];
     _tabController = TabController(length: _tabs.length, vsync: this)
       ..addListener(() => setState(() {}));
   }
 
-  // ── DISPOSE ──────────────────────────────────────────────────
-  // Always dispose controllers to prevent memory leaks.
   @override
   void dispose() {
     _tabController.dispose();
@@ -348,51 +689,47 @@ class _RemedySuggestionsScreenState extends State<RemedySuggestionsScreen>
     super.dispose();
   }
 
-  // ══════════════════════════════════════════════════════════════
-  //  FILTER LOGIC
-  //  Returns the list of remedy items to display based on the
-  //  currently selected tab. On "All", deduplicates remedies by
-  //  title so the same remedy doesn't appear twice.
-  // ══════════════════════════════════════════════════════════════
-  List<({String symptom, Remedy remedy})> get _filtered {
+  // ── FILTER LOGIC ──────────────────────────────────────────────
+  List<_RemedyCard> get _filteredCards {
     final tab = _tabs[_tabController.index];
-
-    // "All" tab: gather every remedy across logged symptoms, skip duplicates
     if (tab == 'All') {
-      final seen   = <String>{};
-      final result = <({String symptom, Remedy remedy})>[];
+      final Map<String, _RemedyCard> grouped = {};
       for (final key in _tabs.skip(1)) {
-        for (final r in remedyDatabase[key] ?? []) {
-          if (seen.add(r.title)) result.add((symptom: key, remedy: r));
+        for (final remedy in remedyDatabase[key] ?? []) {
+          if (grouped.containsKey(remedy.title)) {
+            if (!grouped[remedy.title]!.symptoms.contains(key)) {
+              grouped[remedy.title]!.symptoms.add(key);
+            }
+          } else {
+            grouped[remedy.title] = _RemedyCard(
+              remedyTitle: remedy.title,
+              remedyDescription: remedy.description,
+              symptoms: [key],
+            );
+          }
         }
       }
-      return result;
+      return grouped.values.toList();
     }
-
-    // Single-symptom tab: return all remedies for that symptom
     return [
       for (final r in remedyDatabase[tab] ?? [])
-        (symptom: tab, remedy: r),
+        _RemedyCard(
+          remedyTitle: r.title,
+          remedyDescription: r.description,
+          symptoms: [tab],
+        ),
     ];
   }
 
-  // ══════════════════════════════════════════════════════════════
-  //  BUILD
-  //  Sets status bar style and assembles the main screen layout:
-  //  header → chips → tab bar → scrollable remedy list.
-  // ══════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
-    // Make the status bar transparent with dark icons
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.dark,
     ));
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F3F5),
       body: Container(
-        // Subtle gradient background from top to bottom
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -401,305 +738,20 @@ class _RemedySuggestionsScreenState extends State<RemedySuggestionsScreen>
           ),
         ),
         child: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 20),
-              _buildLoggedChips(),
-              const SizedBox(height: 20),
-              _buildTabBar(),
-              const SizedBox(height: 6),
-              Expanded(child: _buildRemedyList()),
-            ],
-          ),
+          child: _allLogged.isEmpty
+              ? _buildEmptyState()
+              : _buildScrollableContent(),
         ),
       ),
     );
   }
 
-  // ══════════════════════════════════════════════════════════════
-  //  HEADER SECTION
-  //  Displays the screen title and subtitle at the top.
-  // ══════════════════════════════════════════════════════════════
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Screen title using serif display font
-          RichText(
-            text: const TextSpan(
-              text: 'Remedy Suggestions',
-              style: TextStyle(
-                fontFamily: 'CormorantGaramond',
-                fontSize: 30,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF3A1F3D),
-                letterSpacing: 0.2,
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          // Subtitle explaining the context of suggestions
-          const Text(
-            'Based on your logged symptoms',
-            style: TextStyle(
-              fontFamily: 'DMSans',
-              fontSize: 13,
-              color: Color(0x73000000),
-              height: 1.4,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // ── FULL-SCREEN SCROLLABLE CONTENT ────────────────────────────
+  // Header + chips + tab bar + remedy cards all scroll together
+  // as one unified page using CustomScrollView + SliverList.
+  Widget _buildScrollableContent() {
+    final cards = _filteredCards;
 
-  // ══════════════════════════════════════════════════════════════
-  //  LOGGED SYMPTOM CHIPS
-  //  Shows a horizontal Wrap of pill-shaped chips for each item
-  //  the user logged today (moods + symptoms + discharge).
-  //  Only logged items are shown here — no hardcoded extras.
-  //
-  //  TODO: I-connect ito sa actual na logged data ng user para
-  //  dynamic ang chips na lalabas. Dapat same source ng data
-  //  ang chips at ang filter tabs.
-  //  The code should be placed here
-  // ══════════════════════════════════════════════════════════════
-  Widget _buildLoggedChips() {
-    // Merge all logged categories into one flat list for display
-    final all = [
-      ..._sampleMoods,
-      ..._sampleSymptoms,
-      ..._sampleDischarge,
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Section label
-          const Text(
-            'YOUR SYMPTOMS TODAY',
-            style: TextStyle(
-              fontFamily: 'DMSans',
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: Color(0x73000000),
-              letterSpacing: 1.8,
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          // Wrapping chips — each chip shows an icon + label
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: all.map((label) {
-              final icon    = _iconMap[label];
-              final isAsset = icon != null && icon.startsWith('assets/');
-
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF8FC),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFE8B7C3), width: 1),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFB56A7E).withOpacity(0.08),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Show icon if available — asset image or emoji
-                    if (icon != null) ...[
-                      isAsset
-                          ? Image.asset(icon, width: 16, height: 16)
-                          : Text(icon, style: const TextStyle(fontSize: 13)),
-                      const SizedBox(width: 6),
-                    ],
-                    Text(
-                      label,
-                      style: const TextStyle(
-                        fontFamily: 'DMSans',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFFB56A7E),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  //  TAB BAR (FILTER ROW)
-  //  Horizontally scrollable row of filter pills.
-  //  Active tab is highlighted in rose; inactive tabs are outlined.
-  //  Tapping a tab switches the remedy list content.
-  //
-  //  TODO: Kung magdadagdag ng bagong symptom categories sa database,
-  //  i-update ang _iconMap para may tamang icon ang bawat tab.
-  //  The code should be placed here
-  // ══════════════════════════════════════════════════════════════
-  Widget _buildTabBar() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // "FILTER BY" label above the scrollable tabs
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24),
-          child: Text(
-            'FILTER BY',
-            style: TextStyle(
-              fontFamily: 'DMSans',
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: Color(0x73000000),
-              letterSpacing: 1.8,
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-
-        // Horizontally scrollable list of filter tab pills
-        SizedBox(
-          height: 42,
-          child: ListView.builder(
-            controller: _tabScrollController,
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 22),
-            itemCount: _tabs.length,
-            itemBuilder: (ctx, i) {
-              final selected = _tabController.index == i;
-              final label    = _tabs[i];
-              final icon     = _iconMap[label];
-              final isAsset  = icon != null && icon.startsWith('assets/');
-
-              return GestureDetector(
-                onTap: () => _tabController.animateTo(i),
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 240),
-                    curve: Curves.easeInOut,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      // Active tab uses solid rose; inactive uses light fill
-                      color: selected
-                          ? const Color(0xFFB56A7E)
-                          : const Color(0xFFF8EFF2),
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(
-                        color: selected
-                            ? Colors.transparent
-                            : const Color(0xFFE8B7C3),
-                        width: 1,
-                      ),
-                      // Glow shadow only on selected tab
-                      boxShadow: selected
-                          ? [
-                        BoxShadow(
-                          color: const Color(0xFFB56A7E).withOpacity(0.40),
-                          blurRadius: 14,
-                          offset: const Offset(0, 5),
-                        ),
-                      ]
-                          : [],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Show icon only for symptom-specific tabs (not "All")
-                        if (icon != null && label != 'All') ...[
-                          isAsset
-                              ? Image.asset(icon, width: 16, height: 16)
-                              : Text(icon,
-                              style: const TextStyle(fontSize: 14)),
-                          const SizedBox(width: 6),
-                        ],
-                        // Animated text color transition on selection
-                        AnimatedDefaultTextStyle(
-                          duration: const Duration(milliseconds: 240),
-                          style: TextStyle(
-                            fontFamily: 'DMSans',
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: selected
-                                ? Colors.white
-                                : const Color(0xFFB56A7E),
-                          ),
-                          child: Text(label),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-
-        const SizedBox(height: 10),
-
-        // Thin divider below the tab row for visual separation
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Divider(
-            color: const Color(0xFFE8B7C3).withOpacity(0.5),
-            thickness: 1,
-            height: 1,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  //  REMEDY LIST
-  //  Scrollable list of remedy cards filtered by the active tab.
-  //  Shows an empty state if no remedies match the current filter.
-  //  Includes a themed scrollbar for visual polish.
-  // ══════════════════════════════════════════════════════════════
-  Widget _buildRemedyList() {
-    final list = _filtered;
-
-    // Empty state — shown when there are no remedies for the selected tab
-    if (list.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            Text('🌸', style: TextStyle(fontSize: 40)),
-            SizedBox(height: 12),
-            Text(
-              'No remedies for this selection',
-              style: TextStyle(
-                fontFamily: 'DMSans',
-                fontSize: 14,
-                color: Color(0x73000000),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Scrollbar styled to match the app's rose color palette
     return ScrollbarTheme(
       data: ScrollbarThemeData(
         thumbColor: WidgetStateProperty.all(
@@ -716,32 +768,362 @@ class _RemedySuggestionsScreenState extends State<RemedySuggestionsScreen>
       ),
       child: Scrollbar(
         controller: _scrollController,
-        child: ListView.separated(
+        child: CustomScrollView(
           controller: _scrollController,
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
-          itemCount: list.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 14),
-          itemBuilder: (ctx, i) => _buildRemedyCard(list[i]),
+          slivers: [
+            // ── Header ──────────────────────────────────────────
+            SliverToBoxAdapter(child: _buildHeader()),
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+
+            // ── Logged chips (collapsible) ───────────────────────
+            SliverToBoxAdapter(child: _buildLoggedChips()),
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+
+            // ── Tab bar — sticks to top while scrolling ──────────
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _StickyTabBarDelegate(child: _buildTabBar()),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 10)),
+
+            // ── Remedy cards or empty placeholder ────────────────
+            if (cards.isEmpty)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('🌸', style: TextStyle(fontSize: 40)),
+                      SizedBox(height: 12),
+                      Text(
+                        'No remedies found for this selection',
+                        style: TextStyle(
+                          fontFamily: 'DMSans',
+                          fontSize: 14,
+                          color: Color(0x73000000),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+                sliver: SliverList.separated(
+                  itemCount: cards.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 14),
+                  itemBuilder: (ctx, i) => _buildRemedyCard(
+                    cards[i],
+                    showTags: _tabs[_tabController.index] == 'All',
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 
-  // ══════════════════════════════════════════════════════════════
-  //  REMEDY CARD
-  //  Individual card widget showing a symptom icon, remedy title,
-  //  short description (2–3 sentences, no expand/collapse needed),
-  //  and a small symptom tag at the bottom.
-  //
-  //  TODO: Kung kailangan ng "Read More" feature in the future,
-  //  dito sa card idagdag ang toggle logic para ma-expand ang
-  //  description. Sa ngayon, 2–3 sentences lang ang nilalaman.
-  //  The code should be placed here
-  // ══════════════════════════════════════════════════════════════
-  Widget _buildRemedyCard(({String symptom, Remedy remedy}) item) {
-    final icon    = _iconMap[item.symptom];
-    final isAsset = icon != null && icon.startsWith('assets/');
+  // ── EMPTY STATE ───────────────────────────────────────────────
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Text('🌸', style: TextStyle(fontSize: 48)),
+            SizedBox(height: 16),
+            Text(
+              'No symptoms logged yet',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'CormorantGaramond',
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF3A1F3D),
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Add your symptoms in Your Log to see remedy suggestions here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'DMSans',
+                fontSize: 13,
+                color: Color(0x73000000),
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
+  // ── HEADER ────────────────────────────────────────────────────
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          RichText(
+            text: const TextSpan(
+              text: 'Remedy Suggestions',
+              style: TextStyle(
+                fontFamily: 'CormorantGaramond',
+                fontSize: 30,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF3A1F3D),
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Based on your logged symptoms',
+            style: TextStyle(
+              fontFamily: 'DMSans',
+              fontSize: 13,
+              color: Color(0x73000000),
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── LOGGED CHIPS (collapsible) ────────────────────────────────
+  Widget _buildLoggedChips() {
+    final all          = _allLogged;
+    final hasMore      = all.length > _kChipPreviewCount;
+    // When collapsed show only the first _kChipPreviewCount items;
+    // when expanded show all of them.
+    final visibleItems = (!hasMore || _chipsExpanded)
+        ? all
+        : all.sublist(0, _kChipPreviewCount);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'YOUR SYMPTOMS TODAY',
+            style: TextStyle(
+              fontFamily: 'DMSans',
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: Color(0x73000000),
+              letterSpacing: 1.8,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              // ── Visible symptom chips ──────────────────────────
+              ...visibleItems.map((label) => _buildChip(label)),
+
+              // ── "See All" / "See Less" toggle chip ────────────
+              if (hasMore)
+                GestureDetector(
+                  onTap: () => setState(() => _chipsExpanded = !_chipsExpanded),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFB56A7E),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFB56A7E).withOpacity(0.30),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _chipsExpanded
+                              ? 'See Less'
+                              : '+${all.length - _kChipPreviewCount} more',
+                          style: const TextStyle(
+                            fontFamily: 'DMSans',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        AnimatedRotation(
+                          turns: _chipsExpanded ? 0.5 : 0.0,
+                          duration: const Duration(milliseconds: 200),
+                          child: const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Single symptom chip ───────────────────────────────────────
+  Widget _buildChip(String label) {
+    final icon    = _iconMap[label];
+    final isAsset = icon != null && icon.startsWith('assets/');
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8FC),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE8B7C3), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFB56A7E).withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            isAsset
+                ? Image.asset(icon, width: 16, height: 16)
+                : Text(icon, style: const TextStyle(fontSize: 13)),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'DMSans',
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFFB56A7E),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── TAB BAR ───────────────────────────────────────────────────
+  Widget _buildTabBar() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 24),
+          child: Text(
+            'FILTER BY',
+            style: TextStyle(
+              fontFamily: 'DMSans',
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: Color(0x73000000),
+              letterSpacing: 1.8,
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 42,
+          child: ListView.builder(
+            controller: _tabScrollController,
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 22),
+            itemCount: _tabs.length,
+            itemBuilder: (ctx, i) {
+              final selected = _tabController.index == i;
+              final label    = _tabs[i];
+              final icon     = _iconMap[label];
+              final isAsset  = icon != null && icon.startsWith('assets/');
+              return GestureDetector(
+                onTap: () => _tabController.animateTo(i),
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 240),
+                    curve: Curves.easeInOut,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: selected ? const Color(0xFFB56A7E) : const Color(0xFFF8EFF2),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: selected ? Colors.transparent : const Color(0xFFE8B7C3),
+                        width: 1,
+                      ),
+                      boxShadow: selected
+                          ? [
+                        BoxShadow(
+                          color: const Color(0xFFB56A7E).withOpacity(0.40),
+                          blurRadius: 14,
+                          offset: const Offset(0, 5),
+                        ),
+                      ]
+                          : [],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (icon != null && label != 'All') ...[
+                          isAsset
+                              ? Image.asset(icon, width: 16, height: 16)
+                              : Text(icon, style: const TextStyle(fontSize: 14)),
+                          const SizedBox(width: 6),
+                        ],
+                        AnimatedDefaultTextStyle(
+                          duration: const Duration(milliseconds: 240),
+                          style: TextStyle(
+                            fontFamily: 'DMSans',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: selected ? Colors.white : const Color(0xFFB56A7E),
+                          ),
+                          child: Text(label),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Divider(
+            color: const Color(0xFFE8B7C3).withOpacity(0.5),
+            thickness: 1,
+            height: 1,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── REMEDY CARD ───────────────────────────────────────────────
+  Widget _buildRemedyCard(_RemedyCard card, {bool showTags = true}) {
+    final style = _remedyStyle(card.remedyTitle);
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFFFFFBFC),
@@ -763,40 +1145,34 @@ class _RemedySuggestionsScreenState extends State<RemedySuggestionsScreen>
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
             // ── Icon box ─────────────────────────────────────────
-            // Rounded square with the symptom icon inside.
-            // Falls back to remedy_icon.png if no icon is mapped.
             Container(
-              width: 54,
-              height: 54,
+              width: 64,
+              height: 64,
               decoration: BoxDecoration(
-                color: const Color(0xFFF8EFF2),
+                color: const Color(0xFFFDE8F4),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Center(
-                child: icon == null
-                    ? Image.asset(
-                  'assets/images/remedy_icon.png',
-                  width: 32,
-                  height: 32,
-                )
-                    : isAsset
-                    ? Image.asset(icon, width: 32, height: 32)
-                    : Text(icon, style: const TextStyle(fontSize: 26)),
+                child: () {
+                  final assetPath = _remedyIconMap[card.remedyTitle];
+                  if (assetPath != null) {
+                    return Image.asset(assetPath, width: 55, height: 55);
+                  }
+                  return Text(style.emoji,
+                      style: const TextStyle(fontSize: 30));
+                }(),
               ),
             ),
             const SizedBox(width: 14),
 
-            // ── Text content ─────────────────────────────────────
-            // Title, short description, and symptom tag.
+            // ── Text content ──────────────────────────────────────
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Remedy title
                   Text(
-                    item.remedy.title,
+                    card.remedyTitle,
                     style: const TextStyle(
                       fontFamily: 'DMSans',
                       fontSize: 15,
@@ -804,38 +1180,44 @@ class _RemedySuggestionsScreenState extends State<RemedySuggestionsScreen>
                       color: Color(0xFF44222B),
                     ),
                   ),
-                  const SizedBox(height: 5),
-
-                  // Short description — 2–3 sentences, no expand/collapse
+                  const SizedBox(height: 6),
                   Text(
-                    item.remedy.description,
+                    card.remedyDescription,
+                    textAlign: TextAlign.justify,
                     style: const TextStyle(
                       fontFamily: 'DMSans',
                       fontSize: 13,
                       color: Color(0x73000000),
-                      height: 1.4,
+                      height: 1.5,
                     ),
                   ),
-                  const SizedBox(height: 10),
-
-                  // Symptom tag pill at the bottom of the card
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 11, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFB56A7E).withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(8),
+                  if (showTags) ...[
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: card.symptoms
+                          .map((symptom) => Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 11, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFB56A7E)
+                              .withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          symptom,
+                          style: const TextStyle(
+                            fontFamily: 'DMSans',
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFFB56A7E),
+                          ),
+                        ),
+                      ))
+                          .toList(),
                     ),
-                    child: Text(
-                      item.symptom,
-                      style: const TextStyle(
-                        fontFamily: 'DMSans',
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFFB56A7E),
-                      ),
-                    ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -844,4 +1226,53 @@ class _RemedySuggestionsScreenState extends State<RemedySuggestionsScreen>
       ),
     );
   }
+}
+
+// ─────────────────────────────────────────────
+// STICKY TAB BAR DELEGATE
+// Keeps the filter tab bar pinned to the top while
+// the rest of the screen scrolls beneath it.
+// ─────────────────────────────────────────────
+class _StickyTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+
+  const _StickyTabBarDelegate({required this.child});
+
+  // Measure the tab bar height: label row (10) + gap (10) + chips (42)
+  // + gap (10) + divider (1) + bottom padding (10) = ~83
+  static const double _height = 83.0;
+
+  @override
+  double get minExtent => _height;
+
+  @override
+  double get maxExtent => _height;
+
+  @override
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      // Match the screen background so cards slide under cleanly
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFF7F3F5), Color(0xFFF1E6EA)],
+        ),
+        boxShadow: overlapsContent
+            ? [
+          BoxShadow(
+            color: const Color(0xFFB56A7E).withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ]
+            : [],
+      ),
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(_StickyTabBarDelegate old) => old.child != child;
 }
