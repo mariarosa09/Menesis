@@ -1138,28 +1138,7 @@ class _HomePageState extends State<HomePage>
               );
             }),
 
-            const SizedBox(height: 20),
-
-            // ── TODAY'S SUGGESTION ────────────────────────────
-            const Text(
-              "Today's Suggestion",
-              style: TextStyle(
-                fontFamily: "CormorantGaramond",
-                fontSize: 25,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            Container(
-              height: 150,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-
-            const SizedBox(height: 80),
+            const SizedBox(height: 150),
           ],
         ),
       ),
