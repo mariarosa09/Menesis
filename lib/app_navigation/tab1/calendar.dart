@@ -101,15 +101,15 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
 
     // FIX 2: updated keys to match new " Discharge" labels in dailyLog.dart
     const dischargeIcon = {
-      'Pink Discharge'               : 'assets/images/discharge_icon/pink.png',
-      'Clear/Transparent Discharge'  : 'assets/images/discharge_icon/clear.png',
-      'Milky White Discharge'        : 'assets/images/discharge_icon/milky_white.png',
-      'Gray Discharge'               : 'assets/images/discharge_icon/gray.png',
-      'Bright Yellow Discharge'      : 'assets/images/discharge_icon/bright_yellow.png',
-      'Green Discharge'              : 'assets/images/discharge_icon/green.png',
-      'Red Discharge'                : 'assets/images/discharge_icon/red.png',
-      'Brown Discharge'              : 'assets/images/discharge_icon/brown.png',
-      'Watery Discharge'             : 'assets/images/discharge_icon/watery.png',
+      'Pink'               : 'assets/images/discharge_icon/pink.png',
+      'Clear/Transparent'  : 'assets/images/discharge_icon/clear.png',
+      'Milky White'        : 'assets/images/discharge_icon/milky_white.png',
+      'Gray'               : 'assets/images/discharge_icon/gray.png',
+      'Bright Yellow'      : 'assets/images/discharge_icon/bright_yellow.png',
+      'Green'              : 'assets/images/discharge_icon/green.png',
+      'Red'                : 'assets/images/discharge_icon/red.png',
+      'Brown'              : 'assets/images/discharge_icon/brown.png',
+      'Watery'             : 'assets/images/discharge_icon/watery.png',
     };
 
     final parts = <String>[];

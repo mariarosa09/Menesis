@@ -34,15 +34,15 @@ const Map<String, String> _iconMap = {
   'Diarrhea'          : '💩',
 
   // DISCHARGE
-  'Pink Discharge'              : 'assets/images/discharge_icon/pink.png',
-  'Clear/Transparent Discharge' : 'assets/images/discharge_icon/clear.png',
-  'Milky White Discharge'       : 'assets/images/discharge_icon/milky_white.png',
-  'Gray Discharge'              : 'assets/images/discharge_icon/gray.png',
-  'Bright Yellow Discharge'     : 'assets/images/discharge_icon/bright_yellow.png',
-  'Green Discharge'             : 'assets/images/discharge_icon/green.png',
-  'Red Discharge'               : 'assets/images/discharge_icon/red.png',
-  'Brown Discharge'             : 'assets/images/discharge_icon/brown.png',
-  'Watery Discharge'            : 'assets/images/discharge_icon/watery.png',
+  'Pink'              : 'assets/images/discharge_icon/pink.png',
+  'Clear/Transparent' : 'assets/images/discharge_icon/clear.png',
+  'Milky White'       : 'assets/images/discharge_icon/milky_white.png',
+  'Gray'              : 'assets/images/discharge_icon/gray.png',
+  'Bright Yellow'     : 'assets/images/discharge_icon/bright_yellow.png',
+  'Green'             : 'assets/images/discharge_icon/green.png',
+  'Red'               : 'assets/images/discharge_icon/red.png',
+  'Brown'             : 'assets/images/discharge_icon/brown.png',
+  'Watery'            : 'assets/images/discharge_icon/watery.png',
 };
 
 const Map<String, String> _reasonIconMap = {
@@ -60,7 +60,7 @@ const Map<String, String> _reasonIconMap = {
   'Increased Oil Production'   : 'assets/images/reasons_icon/Increased_Oil_Production.png',
   'Slower Digestion'           : 'assets/images/reasons_icon/Slower_Digestion.png',
   'Faster Digestion'           : 'assets/images/reasons_icon/Faster_Digestion.png',
-  'Normal Vaginal Discharge'   : 'assets/images/reasons_icon/Normal_Vaginal_Discharge.png',
+  'Normal Vaginal'   : 'assets/images/reasons_icon/Normal_Vaginal_Discharge.png',
   'Possible Infection'         : 'assets/images/reasons_icon/Possible_Infection.png',
   'Light Spotting'             : 'assets/images/reasons_icon/Light_Spotting.png',
   'Active Menstrual Bleeding'  : 'assets/images/reasons_icon/Active_Menstrual_Bleeding.png',
@@ -164,41 +164,41 @@ const Map<String, List<Reason>> reasonsDatabase = {
     Reason(title: 'Faster Digestion', description: 'During menstruation, prostaglandins can stimulate bowel movements. This may result in diarrhea or more frequent digestion.'),
   ],
 
-  'Clear/Transparent Discharge': [
+  'Clear/Transparent': [
     Reason(title: 'Normal Discharge', description: 'Vaginal discharge helps maintain vaginal health by cleaning and protecting against infection. Its texture and amount naturally change throughout the cycle due to hormonal shifts.'),
     Reason(title: 'Ovulation', description: 'Ovulation occurs when an ovary releases an egg, usually around the middle of the cycle. Hormonal changes during this phase can increase discharge, libido, mild pelvic pain, and energy levels.'),
   ],
 
-  'Milky White Discharge': [
+  'Milky White': [
     Reason(title: 'Normal Discharge', description: 'Vaginal discharge helps maintain vaginal health by cleaning and protecting against infection. Its texture and amount naturally change throughout the cycle due to hormonal shifts.'),
   ],
 
-  'Bright Yellow Discharge': [
+  'Bright Yellow': [
     Reason(title: 'Mild Irritation', description: 'Mild irritation can result from friction, moisture, hormonal sensitivity, or hygiene products. Temporary irritation is common, but persistent symptoms may need attention.'),
     Reason(title: 'Possible Infection', description: 'Unusual discharge, strong odor, itching, or irritation may signal bacterial, fungal, or sexually transmitted infections. Medical evaluation may be needed for proper treatment.'),
   ],
 
-  'Green Discharge': [
+  'Green': [
     Reason(title: 'Possible Infection', description: 'Unusual discharge, strong odor, itching, or irritation may signal bacterial, fungal, or sexually transmitted infections. Medical evaluation may be needed for proper treatment.'),
   ],
 
-  'Gray Discharge': [
+  'Gray': [
     Reason(title: 'Possible Infection', description: 'Unusual discharge, strong odor, itching, or irritation may signal bacterial, fungal, or sexually transmitted infections. Medical evaluation may be needed for proper treatment.'),
   ],
 
-  'Pink Discharge': [
+  'Pink': [
     Reason(title: 'Light Spotting', description: 'Light spotting may occur as hormone levels shift and the uterus begins or finishes shedding its lining. It is often normal if mild and temporary.'),
   ],
 
-  'Red Discharge': [
+  'Red': [
     Reason(title: 'Active Menstrual Bleeding', description: 'This is the normal shedding of the uterine lining when pregnancy does not occur. Flow can vary in heaviness depending on the cycle day.'),
   ],
 
-  'Brown Discharge': [
+  'Brown': [
     Reason(title: 'Old Blood', description: 'Brown or dark-colored blood is usually older blood that took longer to exit the body. It is common near the beginning or end of menstruation.'),
   ],
 
-  'Watery Discharge': [
+  'Watery': [
     Reason(title: 'Hormonal Changes', description: 'Throughout the menstrual cycle, estrogen and progesterone naturally rise and fall to regulate ovulation and menstruation. These hormonal shifts can affect mood, energy, appetite, skin, and physical comfort.'),
     Reason(title: 'Normal Discharge', description: 'Vaginal discharge helps maintain vaginal health by cleaning and protecting against infection. Its texture and amount naturally change throughout the cycle due to hormonal shifts.'),
     Reason(title: 'Premenstrual Syndrome (PMS)', description: 'PMS occurs before menstruation due to hormonal fluctuations, especially changes in progesterone and serotonin levels. It may cause mood swings, bloating, fatigue, irritability, and mild physical discomfort.'),

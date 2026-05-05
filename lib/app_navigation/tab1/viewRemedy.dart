@@ -10,7 +10,7 @@ class Remedy {
   const Remedy({required this.title, required this.description});
 }
 
-// ─────────────────────────────────────────────
+// ────────────────────────────────────────────
 // ICON MAP
 // Keys must match EXACTLY what dailyLog.dart saves to Firestore.
 // Maps each symptom/discharge label to either:
