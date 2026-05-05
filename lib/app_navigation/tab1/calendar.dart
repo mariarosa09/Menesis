@@ -496,7 +496,7 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F3F5),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: _isvalidDay ? const Color(0xFFAA556B) : Colors.grey.shade400,
+        backgroundColor: _isvalidDay ? const Color(0xFF7B4E5F) : Colors.grey.shade400,
         onPressed: _isvalidDay ? () {
           showDialog(
             context: context,
