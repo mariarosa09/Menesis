@@ -1,7 +1,3 @@
-// ============================================================
-// FILE: main.dart
-// ============================================================
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -9,32 +5,25 @@ import '/app_navigation/tab1/dailyLog.dart';
 import '/app_navigation/tab1/viewReason.dart';
 import '/app_navigation/tab1/viewRemedy.dart';
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Mēnesis',
-      home: const CalendarScreen(),
-    );
-  }
-}
+// ═════════════════════════════════════════════════════════════
+// CALENDAR SCREEN WIDGET
+// ═════════════════════════════════════════════════════════════
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
 
   @override
-  State<CalendarScreen> createState() => _CycleTrackerScreenState();
+  State<CalendarScreen> createState() => _CalendarScreenState();
 }
 
-class _CycleTrackerScreenState extends State<CalendarScreen> {
+class _CalendarScreenState extends State<CalendarScreen> {
 
+  // ── State Variables ─────────────────────────────────────────
   final DateTime _today = DateTime.now();
   late DateTime _selectedMonth;
   late DateTime _selectedDate;
 
+  // ── Period prediction logic state (kept from old file) ──────
   bool start = true;
 
   List<DateTime>? startDate;
@@ -45,49 +34,315 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
 
   String _logText  = '';
   String _noteText = '';
+  bool   _isValidDay = true;
 
-  bool _isvalidDay = true;
+  bool _loading = false;
 
-  static const _months = [
+  static const List<String> _months = [
     "January","February","March","April","May","June",
-    "July","August","September","October","November","December"
+    "July","August","September","October","November","December",
   ];
+
+  // ──────────────────────────────────────────────────────────
+  // LIFECYCLE
+  // ──────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
     _selectedMonth = DateTime(_today.year, _today.month);
     _selectedDate  = _today;
+    _refreshData();
     getLogStatus();
     getNotes(_selectedDate);
-    getLogText(_selectedDate);
+    _getLogText(_selectedDate);
   }
 
-  String _monthName(int m) => _months[m - 1];
-  String _formatDate(DateTime d) => "${_months[d.month - 1]} ${d.day}, ${d.year}";
+  // ──────────────────────────────────────────────────────────
+  // PERIOD PREDICTION LOGIC (kept from old file)
+  // ──────────────────────────────────────────────────────────
 
-  void getLogText(DateTime selectedDate) async {
+  void getLogStatus() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      DocumentSnapshot userCycleInfo = await FirebaseFirestore.instance
+          .collection('users').doc(user.uid).collection('cycle').doc('cycle info').get();
+      setState(() {
+        start = userCycleInfo['status'];
+      });
+    }
+  }
+
+  void getNotes(DateTime selectedDate) async {
+    final user = FirebaseAuth.instance.currentUser;
+    DateTime date = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+
+    if (user != null) {
+      DocumentSnapshot log = await FirebaseFirestore.instance
+          .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
+          .collection('symptomsLogs').doc(date.toString()).get();
+      if (mounted) {
+        setState(() {
+          if (log.exists) {
+            _noteText = log['notes'] ?? "";
+          } else {
+            _noteText = "";
+          }
+        });
+      }
+    }
+  }
+
+  void saveNotes(DateTime selectedDate) async {
+    final user = FirebaseAuth.instance.currentUser;
+    DateTime date = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+
+    if (user != null) {
+      await FirebaseFirestore.instance
+          .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
+          .collection('symptomsLogs').doc(date.toString()).set({
+        'notes': _noteText.trim(),
+      }, SetOptions(merge: true));
+    }
+  }
+
+  Future addCycleHistory(DateTime selectedDate) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      DocumentSnapshot userData = await FirebaseFirestore.instance
+          .collection('users').doc(user.uid).collection('cycle').doc('cycle info').get();
+
+      bool first = userData['emptyRecord'];
+
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('cycle').doc('cycle info').update({
+        'status': false,
+        'emptyRecord': false
+      });
+
+      int cycleLength = userData['cycle length'];
+
+      // Get setting data for smart prediction
+      DocumentSnapshot userSetting = await FirebaseFirestore.instance
+          .collection('users').doc(user.uid).collection('cycle').doc('cycle info').get();
+      bool smartPrediction = userSetting['smart prediction'];
+
+      // If smart prediction is on recompute and update the cycle length
+      if (smartPrediction && !first) {
+        // Get latest record
+        CollectionReference history = FirebaseFirestore.instance
+            .collection('users').doc(user.uid).collection('cycle').doc('cycle info').collection('periodLogs');
+        final QuerySnapshot latest = await history
+            .orderBy('cycle start date', descending: true).limit(1).get();
+        String latestId = latest.docs.first.id;
+
+        // Get the previous cycle's length
+        DocumentSnapshot userCycleHistory = await FirebaseFirestore.instance
+            .collection('users').doc(user.uid).collection('cycle').doc('cycle info').collection('periodLogs').doc(latestId).get();
+        final periodStart = (userCycleHistory['cycle start date'] as Timestamp).toDate();
+        Duration previousCycleLength = selectedDate.difference(periodStart);
+
+        // Update previous cycle's cycle length
+        await FirebaseFirestore.instance
+            .collection('users').doc(user.uid).collection('cycle').doc('cycle info').collection('periodLogs').doc(latestId).update({
+          'cycle length': previousCycleLength.inDays
+        });
+
+        // Get all cycle lengths
+        QuerySnapshot allData = await history.get();
+        List<int> cycleLengths = allData.docs
+            .map((doc) => (doc.get('cycle length') as int)).toList();
+        int sumOfCycleLength = 0;
+        int numOfCycleLength = cycleLengths.length;
+        for (int len in cycleLengths) {
+          sumOfCycleLength += len;
+        }
+        int average = (sumOfCycleLength / numOfCycleLength).ceil();
+        cycleLength = average;
+
+        // Update cycle length in the database
+        await FirebaseFirestore.instance
+            .collection('users').doc(user.uid).collection('cycle').doc('cycle info').update({
+          'cycle length': average
+        });
+
+        // Compute the previous fertile and ovulation based on the cycle length
+        DateTime fertileStart = periodStart
+            .add(Duration(days: previousCycleLength.inDays - 20));
+        DateTime fertileEnd = fertileStart.add(const Duration(days: 6));
+        DateTime ovulationDate = fertileEnd.subtract(const Duration(days: 1));
+
+        // Update the database
+        await FirebaseFirestore.instance
+            .collection('users').doc(user.uid).collection('cycle').doc('cycle info').collection('periodLogs').doc(latestId).update({
+          'fertile start date': fertileStart,
+          'fertile end date': fertileEnd,
+          'ovulation date': ovulationDate
+        });
+      }
+
+      // Get the average periodLength and cycleLength
+      int periodLength = userData['period length'];
+
+      // Compute predictions
+      DateTime startDateVal = selectedDate;
+      DateTime endDateVal = startDateVal.add(Duration(days: cycleLength - 1));
+      DateTime periodEnd = startDateVal.add(Duration(days: periodLength - 1));
+      DateTime fertileStart = startDateVal.add(Duration(days: cycleLength - 20));
+      DateTime fertileEnd = fertileStart.add(const Duration(days: 6));
+      DateTime ovulationDate = fertileEnd.subtract(const Duration(days: 1));
+
+      // Add predictions to firebase
+      await FirebaseFirestore.instance
+          .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
+          .collection('periodLogs').doc(selectedDate.toString()).set({
+        'cycle start date': startDateVal,
+        'period end date': periodEnd,
+        'cycle end date': endDateVal,
+        'fertile start date': fertileStart,
+        'fertile end date': fertileEnd,
+        'ovulation date': ovulationDate
+      });
+
+      if (mounted) {
+        setState(() {
+          start = false;
+        });
+      }
+    }
+  }
+
+  Future updateCycleHistory(DateTime selectedDate) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      // Update status
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('cycle').doc('cycle info').update({
+        'status': true
+      });
+
+      // Get setting data for smart prediction
+      DocumentSnapshot userSetting = await FirebaseFirestore.instance
+          .collection('users').doc(user.uid).collection('cycle').doc('cycle info').get();
+      bool smartPrediction = userSetting['smart prediction'];
+
+      // Get the uid of the latest cycle history
+      final CollectionReference history = FirebaseFirestore.instance
+          .collection('users').doc(user.uid).collection('cycle').doc('cycle info').collection('periodLogs');
+      final QuerySnapshot latest = await history
+          .orderBy('cycle start date', descending: true).limit(1).get();
+      String latestId = latest.docs.first.id;
+
+      // Get the document of the latest cycle
+      DocumentSnapshot cycleHistoryData = await FirebaseFirestore.instance
+          .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
+          .collection('periodLogs').doc(latestId).get();
+
+      if (smartPrediction) {
+        // Compute current period length
+        DateTime periodStart = (cycleHistoryData['cycle start date'] as Timestamp).toDate();
+        DateTime periodEnd = selectedDate;
+        Duration currentPeriodLength =
+            (periodEnd.difference(periodStart)) + const Duration(days: 1);
+
+        // Update the current cycle period length
+        await FirebaseFirestore.instance
+            .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
+            .collection('periodLogs').doc(latestId).update({
+          'period length': currentPeriodLength.inDays
+        });
+
+        // Get the list of period lengths
+        QuerySnapshot allData = await history.get();
+        List<int> cycleLengths = allData.docs
+            .map((doc) => (doc.get('period length') as int)).toList();
+        int sumOfPeriodLength = 0;
+        int numOfPeriodLength = cycleLengths.length;
+        for (int len in cycleLengths) {
+          sumOfPeriodLength += len;
+        }
+        int average = (sumOfPeriodLength / numOfPeriodLength).ceil();
+
+        // Update period length in the database
+        await FirebaseFirestore.instance
+            .collection('users').doc(user.uid).collection('cycle').doc('cycle info').update({
+          'period length': average
+        });
+      }
+
+      // Update end period date in the database
+      await history.doc(latestId).update({
+        'period end date': selectedDate,
+      });
+
+      if (mounted) {
+        setState(() {
+          start = true;
+        });
+      }
+    }
+  }
+
+  Future<(List<DateTime>, List<DateTime>, List<DateTime>, List<DateTime>, List<DateTime>)>
+  getCycleData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    CollectionReference history = FirebaseFirestore.instance
+        .collection('users').doc(user!.uid).collection('cycle').doc('cycle info').collection('periodLogs');
+    QuerySnapshot allData = await history.get();
+
+    List<DateTime> startDateList = allData.docs
+        .map((doc) => (doc.get('cycle start date') as Timestamp).toDate()).toList();
+    List<DateTime> endDateList = allData.docs
+        .map((doc) => (doc.get('period end date') as Timestamp).toDate()).toList();
+    List<DateTime> startFertileList = allData.docs
+        .map((doc) => (doc.get('fertile start date') as Timestamp).toDate()).toList();
+    List<DateTime> endFertileList = allData.docs
+        .map((doc) => (doc.get('fertile end date') as Timestamp).toDate()).toList();
+    List<DateTime> ovulationList = allData.docs
+        .map((doc) => (doc.get('ovulation date') as Timestamp).toDate()).toList();
+
+    return (startDateList, endDateList, startFertileList, endFertileList, ovulationList);
+  }
+
+  void _refreshData() async {
+    setState(() => _loading = true);
+    final data = await getCycleData();
+    if (mounted) {
+      setState(() {
+        startDate    = data.$1;
+        endDate      = data.$2;
+        startFertile = data.$3;
+        endFertile   = data.$4;
+        ovulation    = data.$5;
+        _loading     = false;
+      });
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // DAILY LOG HELPERS
+  // ──────────────────────────────────────────────────────────
+
+  void _getLogText(DateTime selectedDate) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     final date = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
     final log = await FirebaseFirestore.instance
-        .collection('cycle')
-        .doc(user.uid)
-        .collection('logs')
+        .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
+        .collection('symptomsLogs')
         .doc(date.toString())
         .get();
 
     if (!mounted) return;
-
     if (!log.exists) {
       setState(() => _logText = '');
       return;
     }
 
     final symptoms  = (log['physical symptoms'] as List?)?.cast<String>() ?? [];
-    final moods     = (log['mood'] as List?)?.cast<String>() ?? [];
-    final discharge = (log['discharge'] as List?)?.cast<String>() ?? [];
+    final moods     = (log['mood']              as List?)?.cast<String>() ?? [];
+    final discharge = (log['discharge']         as List?)?.cast<String>() ?? [];
 
     const symptomIcon = {
       "Cramps": "🤕", "Headaches": "🤯", "Nausea": "🤢", "Bloating": "😖",
@@ -99,79 +354,29 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
       "Confident": "😎", "Happy": "😊", "Impatient": "😤", "Inspired": "✨",
     };
 
-    // FIX 2: updated keys to match new " Discharge" labels in dailyLog.dart
-    const dischargeIcon = {
-      'Pink'               : 'assets/images/discharge_icon/pink.png',
-      'Clear/Transparent'  : 'assets/images/discharge_icon/clear.png',
-      'Milky White'        : 'assets/images/discharge_icon/milky_white.png',
-      'Gray'               : 'assets/images/discharge_icon/gray.png',
-      'Bright Yellow'      : 'assets/images/discharge_icon/bright_yellow.png',
-      'Green'              : 'assets/images/discharge_icon/green.png',
-      'Red'                : 'assets/images/discharge_icon/red.png',
-      'Brown'              : 'assets/images/discharge_icon/brown.png',
-      'Watery'             : 'assets/images/discharge_icon/watery.png',
-    };
-
     final parts = <String>[];
-
     if (symptoms.isNotEmpty) {
-      final icons = symptoms.map((s) => '${symptomIcon[s] ?? ''} $s').join('  ·  ');
-      parts.add('Symptoms\n$icons');
+      parts.add(
+        'Symptoms\n${symptoms.map((s) => '${symptomIcon[s] ?? ''} $s').join('  ·  ')}',
+      );
     }
     if (moods.isNotEmpty) {
-      final icons = moods.map((m) => '${moodIcon[m] ?? ''} $m').join('  ·  ');
-      parts.add('Mood\n$icons');
+      parts.add(
+        'Mood\n${moods.map((m) => '${moodIcon[m] ?? ''} $m').join('  ·  ')}',
+      );
     }
     if (discharge.isNotEmpty) {
-      // FIX 2: encode as "assetPath|label" — the widget will render Image.asset
-      final icons = discharge.map((label) {
-        final path = dischargeIcon[label] ?? '';
-        return path.isNotEmpty ? '$path|$label' : label;
-      }).join('  ·  ');
-      parts.add('Discharge\n$icons');
+      parts.add(
+        'Discharge\n${discharge.join('  ·  ')}',
+      );
     }
 
     setState(() => _logText = parts.join('\n\n'));
   }
 
-  void getLogStatus() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      final userCycleInfo = await FirebaseFirestore.instance
-          .collection('cycle').doc(user.uid).get();
-      setState(() {
-        start = userCycleInfo['status'];
-      });
-    }
-  }
-
-  void getNotes(DateTime selectedDate) async {
-    final user = FirebaseAuth.instance.currentUser;
-    final date = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
-
-    if (user != null) {
-      final log = await FirebaseFirestore.instance
-          .collection('cycle').doc(user.uid).collection('logs')
-          .doc(date.toString()).get();
-      if (mounted) {
-        setState(() {
-          _noteText = log.exists ? (log['notes'] ?? '') : '';
-        });
-      }
-    }
-  }
-
-  void saveNotes(DateTime selectedDate) async {
-    final user = FirebaseAuth.instance.currentUser;
-    final date = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
-
-    if (user != null) {
-      await FirebaseFirestore.instance
-          .collection('cycle').doc(user.uid).collection('logs')
-          .doc(date.toString())
-          .set({'notes': _noteText.trim()}, SetOptions(merge: true));
-    }
-  }
+  // ──────────────────────────────────────────────────────────
+  // BOTTOM SHEETS
+  // ──────────────────────────────────────────────────────────
 
   void _openDailyLog(DateTime date) {
     showModalBottomSheet(
@@ -192,8 +397,7 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
             children: [
               Container(
                 margin: const EdgeInsets.only(top: 10, bottom: 4),
-                width: 40,
-                height: 4,
+                width: 40, height: 4,
                 decoration: BoxDecoration(
                   color: const Color(0xFFD4AABB),
                   borderRadius: BorderRadius.circular(2),
@@ -220,60 +424,38 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
   void _openPossibleReasons() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
-    final date = DateTime(
-      _selectedDate.year,
-      _selectedDate.month,
-      _selectedDate.day,
-    );
-
+    final date = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
     final doc = await FirebaseFirestore.instance
-        .collection('cycle')
-        .doc(user.uid)
-        .collection('logs')
-        .doc(date.toString())
-        .get();
-
+        .collection('user').doc(user.uid).collection('cycle').doc('cycle info')
+        .collection('symptomsLogs').doc(date.toString()).get();
     final symptoms  = (doc['physical symptoms'] as List?)?.cast<String>() ?? [];
-    final moods     = (doc['mood'] as List?)?.cast<String>() ?? [];
-    final discharge = (doc['discharge'] as List?)?.cast<String>() ?? [];
-
+    final moods     = (doc['mood']              as List?)?.cast<String>() ?? [];
+    final discharge = (doc['discharge']         as List?)?.cast<String>() ?? [];
     if (!mounted) return;
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.92,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (_, scrollController) => Container(
+        initialChildSize: 0.92, minChildSize: 0.5, maxChildSize: 0.95, expand: false,
+        builder: (_, sc) => Container(
           decoration: const BoxDecoration(
             color: Color(0xFFF7F3F5),
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          child: Column(
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 10, bottom: 4),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
+          child: Column(children: [
+            Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 4),
+              width: 40, height: 4,
+              decoration: BoxDecoration(
                   color: const Color(0xFFD4AABB),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Expanded(
-                child: PossibleReasonsScreen(
-                  loggedSymptoms:  symptoms,
-                  loggedMoods:     moods,
-                  loggedDischarge: discharge,
-                ),
-              ),
-            ],
-          ),
+                  borderRadius: BorderRadius.circular(2)),
+            ),
+            Expanded(child: PossibleReasonsScreen(
+                loggedSymptoms: symptoms,
+                loggedMoods: moods,
+                loggedDischarge: discharge)),
+          ]),
         ),
       ),
     );
@@ -282,57 +464,139 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
   void _openRemedySuggestions() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
-    final date = DateTime(
-      _selectedDate.year,
-      _selectedDate.month,
-      _selectedDate.day,
-    );
-
+    final date = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
     final doc = await FirebaseFirestore.instance
-        .collection('cycle')
-        .doc(user.uid)
-        .collection('logs')
-        .doc(date.toString())
-        .get();
-
+        .collection('cycle').doc(user.uid)
+        .collection('logs').doc(date.toString()).get();
     final symptoms  = (doc['physical symptoms'] as List?)?.cast<String>() ?? [];
-    final moods     = (doc['mood'] as List?)?.cast<String>() ?? [];
-    final discharge = (doc['discharge'] as List?)?.cast<String>() ?? [];
-
+    final moods     = (doc['mood']              as List?)?.cast<String>() ?? [];
+    final discharge = (doc['discharge']         as List?)?.cast<String>() ?? [];
     if (!mounted) return;
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.92,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (_, scrollController) => Container(
+        initialChildSize: 0.92, minChildSize: 0.5, maxChildSize: 0.95, expand: false,
+        builder: (_, sc) => Container(
           decoration: const BoxDecoration(
             color: Color(0xFFF7F3F5),
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
+          child: Column(children: [
+            Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 4),
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                  color: const Color(0xFFD4AABB),
+                  borderRadius: BorderRadius.circular(2)),
+            ),
+            Expanded(child: RemedySuggestionsScreen(
+                loggedSymptoms: symptoms,
+                loggedMoods: moods,
+                loggedDischarge: discharge)),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // UTILITY HELPERS
+  // ──────────────────────────────────────────────────────────
+
+  String _monthName(int m) => _months[m - 1];
+
+  String _formatDate(DateTime d) =>
+      "${_months[d.month - 1]} ${d.day}, ${d.year}";
+
+  Future<bool?> _showConfirmDialog({
+    required String title,
+    required String content,
+    required String confirmLabel,
+    Color confirmColor = const Color(0xFFB56A7E),
+    IconData icon = Icons.water_drop_outlined,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                margin: const EdgeInsets.only(top: 10, bottom: 4),
-                width: 40,
-                height: 4,
+                width: 56, height: 56,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFD4AABB),
-                  borderRadius: BorderRadius.circular(2),
+                  color: confirmColor.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: confirmColor, size: 28),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontFamily: "CormorantGaramond",
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF44222B),
                 ),
               ),
-              Expanded(
-                child: RemedySuggestionsScreen(
-                  loggedSymptoms:  symptoms,
-                  loggedMoods:     moods,
-                  loggedDischarge: discharge,
+              const SizedBox(height: 8),
+              Text(
+                content,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: "DMSans",
+                  fontSize: 13,
+                  color: Color(0xFF7A5566),
+                  height: 1.5,
                 ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: confirmColor),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: Text("Cancel",
+                          style: TextStyle(
+                              fontFamily: "DMSans",
+                              color: confirmColor,
+                              fontSize: 14)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: confirmColor,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        elevation: 0,
+                      ),
+                      child: Text(confirmLabel,
+                          style: const TextStyle(
+                            fontFamily: "DMSans",
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          )),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -341,143 +605,41 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
     );
   }
 
-  Future addCycleHistory(DateTime selectedDate) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+  // ──────────────────────────────────────────────────────────
+  // FAB ACTION
+  // ──────────────────────────────────────────────────────────
 
-    final userData = await FirebaseFirestore.instance
-        .collection('cycle').doc(user.uid).get();
-    bool first = userData['emptyRecord'];
+  Future<void> _onPeriodButtonPressed() async {
+    final confirm = await _showConfirmDialog(
+      title:        start ? "Period starts" : "Period Ends",
+      content:      start
+          ? "Are you sure your period starts on ${_formatDate(_selectedDate)}?"
+          : "Are you sure your period ends on ${_formatDate(_selectedDate)}?",
+      confirmLabel: "Save",
+      confirmColor: const Color(0xFFB56A7E),
+      icon:         Icons.water_drop_outlined,
+    );
 
-    await FirebaseFirestore.instance.collection('cycle').doc(user.uid).update({
-      'status': false,
-      'emptyRecord': false
-    });
-
-    int cycleLength = userData['cycle length'];
-
-    final userSetting = await FirebaseFirestore.instance
-        .collection('settings').doc(user.uid).get();
-    bool smartPrediction = userSetting['smart prediction'];
-
-    if (smartPrediction && !first) {
-      final history = FirebaseFirestore.instance
-          .collection('cycle').doc(user.uid).collection('cycle history');
-      final latest =
-      await history.orderBy('start date', descending: true).limit(1).get();
-      String latestId = latest.docs.first.id;
-
-      final userCycleHistory = await FirebaseFirestore.instance
-          .collection('cycle').doc(user.uid)
-          .collection('cycle history').doc(latestId).get();
-      final periodStart = (userCycleHistory['start date'] as Timestamp).toDate();
-      Duration previousCycleLength = selectedDate.difference(periodStart);
-
-      await FirebaseFirestore.instance
-          .collection('cycle').doc(user.uid)
-          .collection('cycle history').doc(latestId)
-          .update({'cycle length': previousCycleLength.inDays});
-
-      final allData = await history.get();
-      List<int> cycleLengths =
-      allData.docs.map((doc) => (doc.get('cycle length') as int)).toList();
-      int sum = 0;
-      for (int len in cycleLengths) sum += len;
-      int average = (sum / cycleLengths.length).ceil();
-      cycleLength = average;
-
-      await FirebaseFirestore.instance.collection('cycle').doc(user.uid)
-          .update({'cycle length': average});
-
-      DateTime fertileStart =
-      periodStart.add(Duration(days: previousCycleLength.inDays - 20));
-      DateTime fertileEnd = fertileStart.add(const Duration(days: 6));
-      DateTime ovulation = fertileEnd.subtract(const Duration(days: 1));
-
-      await FirebaseFirestore.instance
-          .collection('cycle').doc(user.uid)
-          .collection('cycle history').doc(latestId).update({
-        'fertile start': fertileStart,
-        'fertile end': fertileEnd,
-        'ovulation': ovulation
-      });
+    if (confirm == true) {
+      if (start) {
+        await addCycleHistory(_selectedDate);
+      } else {
+        await updateCycleHistory(_selectedDate);
+      }
+      _refreshData();
     }
-
-    int periodLength = userData['period length'];
-    DateTime startDate   = selectedDate;
-    DateTime endDate     = startDate.add(Duration(days: cycleLength - 1));
-    DateTime periodEnd   = startDate.add(Duration(days: periodLength - 1));
-    DateTime fertileStart = startDate.add(Duration(days: cycleLength - 20));
-    DateTime fertileEnd  = fertileStart.add(const Duration(days: 6));
-    DateTime ovulation   = fertileEnd.subtract(const Duration(days: 1));
-
-    await FirebaseFirestore.instance
-        .collection('cycle').doc(user.uid)
-        .collection('cycle history').doc(selectedDate.toString()).set({
-      'start date': startDate,
-      'period end': periodEnd,
-      'end date': endDate,
-      'fertile start': fertileStart,
-      'fertile end': fertileEnd,
-      'ovulation': ovulation
-    });
-
-    if (mounted) setState(() => start = false);
   }
 
-  Future updateCycleHistory(DateTime selectedDate) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    await FirebaseFirestore.instance.collection('cycle').doc(user.uid)
-        .update({'status': true});
-
-    final userSetting = await FirebaseFirestore.instance
-        .collection('settings').doc(user.uid).get();
-    bool smartPrediction = userSetting['smart prediction'];
-
-    final history = FirebaseFirestore.instance
-        .collection('cycle').doc(user.uid).collection('cycle history');
-    final latest =
-    await history.orderBy('start date', descending: true).limit(1).get();
-    String latestId = latest.docs.first.id;
-    final cycleHistoryData = await FirebaseFirestore.instance
-        .collection('cycle').doc(user.uid)
-        .collection('cycle history').doc(latestId).get();
-
-    if (smartPrediction) {
-      final periodStart =
-      (cycleHistoryData['start date'] as Timestamp).toDate();
-      final periodEnd = selectedDate;
-      final currentPeriodLength =
-          (periodEnd.difference(periodStart)) + const Duration(days: 1);
-
-      await FirebaseFirestore.instance
-          .collection('cycle').doc(user.uid)
-          .collection('cycle history').doc(latestId)
-          .update({'period length': currentPeriodLength.inDays});
-
-      final allData = await history.get();
-      List<int> cycleLengths =
-      allData.docs.map((doc) => (doc.get('period length') as int)).toList();
-      int sum = 0;
-      for (int len in cycleLengths) sum += len;
-      int average = (sum / cycleLengths.length).ceil();
-
-      await FirebaseFirestore.instance.collection('cycle').doc(user.uid)
-          .update({'period length': average});
-    }
-
-    await history.doc(latestId).update({'period end': selectedDate});
-    if (mounted) setState(() => start = true);
-  }
+  // ──────────────────────────────────────────────────────────
+  // BUILD
+  // ──────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final daysInMonth  = DateUtils.getDaysInMonth(_selectedMonth.year, _selectedMonth.month);
     final firstWeekday = DateTime(_selectedMonth.year, _selectedMonth.month, 1).weekday % 7;
     final totalCells   = firstWeekday + daysInMonth;
-    final trailingCells = (7 - (totalCells % 7)) % 7;
+    final trailing     = (7 - (totalCells % 7)) % 7;
 
     final prevMonth  = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
     final daysInPrev = DateUtils.getDaysInMonth(prevMonth.year, prevMonth.month);
@@ -489,73 +651,30 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
     for (int day = 1; day <= daysInMonth; day++) {
       dayCells.add(_buildDayCell(day));
     }
-    for (int i = 1; i <= trailingCells; i++) {
+    for (int i = 1; i <= trailing; i++) {
       dayCells.add(_buildGhostCell(i));
     }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F3F5),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: _isvalidDay ? const Color(0xFF7B4E5F) : Colors.grey.shade400,
-        onPressed: _isvalidDay ? () {
-          showDialog(
-            context: context,
-            builder: (context) {
-              return AlertDialog(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-                backgroundColor: const Color(0xFFFFFBFC),
-                title: Text(
-                  start ? "Period starts" : "Period Ends",
-                  style: const TextStyle(
-                    fontFamily: 'CormorantGaramond',
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF3A1F3D),
-                  ),
-                ),
-                content: Text(
-                  start
-                      ? "Are you sure your period starts on ${_formatDate(_selectedDate)}?"
-                      : "Are you sure your period ends on ${_formatDate(_selectedDate)}?",
-                  style: const TextStyle(fontSize: 14, color: Colors.black54),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      _selectedDate = _today;
-                    },
-                    child: const Text("Select a date",
-                        style: TextStyle(color: Colors.black45, fontSize: 14)),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      if (start) {
-                        addCycleHistory(_selectedDate);
-                      } else {
-                        updateCycleHistory(_selectedDate);
-                      }
-                      _refreshData();
-                      Navigator.of(context).pop();
-                    },
-                    child: const Text("Save",
-                        style: TextStyle(
-                          color: Color(0xFFB56A7E),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        )),
-                  ),
-                ],
-              );
-            },
-          );
-        } : null,
-        icon: Icon(Icons.add, color: _isvalidDay ? Colors.white : Colors.black54),
+
+      floatingActionButton: _isValidDay
+          ? FloatingActionButton.extended(
+        backgroundColor: const Color(0xFFAA556B),
+        onPressed: _onPeriodButtonPressed,
+        icon: const Icon(Icons.water_drop_outlined, color: Colors.white),
         label: Text(
           start ? "Start Period" : "End Period",
-          style: TextStyle(
-              fontFamily: "DMSans",
-              color: _isvalidDay ? Colors.white : Colors.black54),
+          style: const TextStyle(fontFamily: "DMSans", color: Colors.white),
+        ),
+      )
+          : FloatingActionButton.extended(
+        backgroundColor: Colors.grey.shade400,
+        onPressed: null,
+        icon: const Icon(Icons.water_drop_outlined, color: Colors.black54),
+        label: Text(
+          start ? "Start Period" : "End Period",
+          style: const TextStyle(fontFamily: "DMSans", color: Colors.black54),
         ),
       ),
 
@@ -568,21 +687,18 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
 
+                    // ── Month navigation ──────────────────────
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          InkWell(
-                            onTap: () {},
-                            borderRadius: BorderRadius.circular(12),
-                            child: IconButton(
-                              splashColor: const Color(0xFFB56A7E).withOpacity(0.2),
-                              highlightColor: const Color(0xFFB56A7E).withOpacity(0.3),
-                              onPressed: () => setState(() => _selectedMonth =
-                                  DateTime(_selectedMonth.year, _selectedMonth.month - 1)),
-                              icon: const Icon(Icons.chevron_left, color: Color(0xFF3A1F3D)),
-                            ),
+                          IconButton(
+                            splashColor:    const Color(0xFFB56A7E).withOpacity(0.2),
+                            highlightColor: const Color(0xFFB56A7E).withOpacity(0.3),
+                            onPressed: () => setState(() => _selectedMonth =
+                                DateTime(_selectedMonth.year, _selectedMonth.month - 1)),
+                            icon: const Icon(Icons.chevron_left, color: Color(0xFF3A1F3D)),
                           ),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 8),
@@ -604,16 +720,12 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
                               ),
                             ),
                           ),
-                          InkWell(
-                            onTap: () {},
-                            borderRadius: BorderRadius.circular(12),
-                            child: IconButton(
-                              splashColor: const Color(0xFFB56A7E).withOpacity(0.2),
-                              highlightColor: const Color(0xFFB56A7E).withOpacity(0.3),
-                              onPressed: () => setState(() => _selectedMonth =
-                                  DateTime(_selectedMonth.year, _selectedMonth.month + 1)),
-                              icon: const Icon(Icons.chevron_right, color: Color(0xFF3A1F3D)),
-                            ),
+                          IconButton(
+                            splashColor:    const Color(0xFFB56A7E).withOpacity(0.2),
+                            highlightColor: const Color(0xFFB56A7E).withOpacity(0.3),
+                            onPressed: () => setState(() => _selectedMonth =
+                                DateTime(_selectedMonth.year, _selectedMonth.month + 1)),
+                            icon: const Icon(Icons.chevron_right, color: Color(0xFF3A1F3D)),
                           ),
                         ],
                       ),
@@ -621,6 +733,7 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
 
                     const SizedBox(height: 12),
 
+                    // ── Day-of-week headers ───────────────────
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Row(
@@ -641,9 +754,20 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
 
                     const SizedBox(height: 6),
 
+                    // ── Calendar grid ─────────────────────────
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: GridView.count(
+                      child: _loading
+                          ? const SizedBox(
+                        height: 220,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFFB56A7E),
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      )
+                          : GridView.count(
                         crossAxisCount: 7,
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
@@ -654,6 +778,7 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
 
                     const SizedBox(height: 14),
 
+                    // ── Legend ────────────────────────────────
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Row(
@@ -669,6 +794,7 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
 
                     const SizedBox(height: 40),
 
+                    // ── Selected-date label ───────────────────
                     Stack(
                       alignment: Alignment.center,
                       children: [
@@ -698,6 +824,7 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
 
                     const SizedBox(height: 20),
 
+                    // ── Your Log section ──────────────────────
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: _overlapSection(
@@ -737,8 +864,7 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
                                           color: Colors.transparent,
                                           borderRadius: BorderRadius.circular(10),
                                           border: Border.all(
-                                              color: const Color(0xFF301C29),
-                                              width: 0.5),
+                                              color: const Color(0xFF301C29), width: 0.5),
                                         ),
                                         child: Text(
                                           _noteText.isNotEmpty
@@ -777,17 +903,17 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
                             ),
 
                             Positioned(
-                              top: 2,
-                              right: 15,
+                              top: 2, right: 15,
                               child: GestureDetector(
-                                onTap: _isvalidDay ? () => _openDailyLog(_selectedDate) : null,
+                                onTap: _isValidDay
+                                    ? () => _openDailyLog(_selectedDate)
+                                    : null,
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.add,
-                                        size: 13,
-                                        color: _isvalidDay
+                                    Icon(Icons.add, size: 13,
+                                        color: _isValidDay
                                             ? const Color(0xFFB56A7E)
                                             : Colors.black),
                                     const SizedBox(width: 3),
@@ -795,7 +921,7 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
                                       _logText.isEmpty ? "Add Log" : "Edit Log",
                                       style: TextStyle(
                                         fontFamily: "CormorantGaramond",
-                                        color: _isvalidDay
+                                        color: _isValidDay
                                             ? const Color(0xFFB56A7E)
                                             : Colors.black54,
                                         fontSize: 14,
@@ -823,23 +949,144 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
     );
   }
 
-  // ── Log Summary Widget ────────────────────────────────────────
-  // FIX 2: discharge items are encoded as "assetPath|label".
-  // This parser splits them and renders Image.asset for the icon.
+  // ──────────────────────────────────────────────────────────
+  // CALENDAR DAY CELL
+  // ──────────────────────────────────────────────────────────
+
+  Widget _buildDayCell(int day) {
+    final thisDay    = DateTime(_selectedMonth.year, _selectedMonth.month, day);
+    final isSelected = DateUtils.isSameDay(thisDay, _selectedDate);
+    final isToday    = DateUtils.isSameDay(thisDay, _today);
+
+    bool isPeriod    = false;
+    bool isFertile   = false;
+    bool isOvulation = false;
+
+    if (startDate != null && endDate != null &&
+        startFertile != null && endFertile != null && ovulation != null) {
+      for (int i = 0; i < startDate!.length; i++) {
+        if ((thisDay.isAfter(startDate![i]) || DateUtils.isSameDay(thisDay, startDate![i])) &&
+            (thisDay.isBefore(endDate![i])  || DateUtils.isSameDay(thisDay, endDate![i]))) {
+          isPeriod = true;
+        }
+        if ((thisDay.isAfter(startFertile![i]) || DateUtils.isSameDay(thisDay, startFertile![i])) &&
+            (thisDay.isBefore(endFertile![i])  || DateUtils.isSameDay(thisDay, endFertile![i]))) {
+          isFertile = true;
+        }
+        if (DateUtils.isSameDay(thisDay, ovulation![i])) {
+          isOvulation = true;
+        }
+      }
+    }
+
+    Color bgColor;
+    if (isToday) {
+      bgColor = Colors.transparent;
+    } else if (isOvulation) {
+      bgColor = const Color(0xFFaedbc8);
+    } else if (isPeriod) {
+      bgColor = const Color(0xFFe2acb5);
+    } else if (isFertile) {
+      bgColor = const Color(0xFFddcb9c);
+    } else {
+      bgColor = Colors.transparent;
+    }
+
+    final textColor = isToday ? const Color(0xFF884456) : Colors.black87;
+
+    return GestureDetector(
+      onTap: () {
+        getNotes(thisDay);
+        _getLogText(thisDay);
+        setState(() {
+          _selectedDate = thisDay;
+          _isValidDay   = !thisDay.isAfter(_today);
+        });
+      },
+      onDoubleTap: () {
+        setState(() => _selectedDate = thisDay);
+        _openDailyLog(thisDay);
+      },
+      child: Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+          width: 50,
+          height: isToday ? 50 : 45,
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(15),
+            border: isToday
+                ? Border.all(color: const Color(0xFF884456), width: 1.8)
+                : isSelected
+                ? Border.all(color: Colors.black54, width: 1.5)
+                : null,
+          ),
+          alignment: Alignment.center,
+          child: isToday
+              ? Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text("Today",
+                  style: TextStyle(
+                    fontFamily: "CormorantGaramond",
+                    fontSize: 9,
+                    color: Color(0xFF884456),
+                    fontWeight: FontWeight.w600,
+                  )),
+              const SizedBox(height: 1),
+              Text("$day",
+                  style: const TextStyle(
+                    fontFamily: "DMSans",
+                    fontSize: 13,
+                    color: Color(0xFF884456),
+                    fontWeight: FontWeight.w500,
+                  )),
+            ],
+          )
+              : Text("$day",
+              style: TextStyle(
+                fontFamily: "DMSans",
+                fontSize: 13,
+                color: textColor,
+                fontWeight: FontWeight.w500,
+              )),
+        ),
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // HELPER WIDGETS
+  // ──────────────────────────────────────────────────────────
+
+  Widget _buildGhostCell(int day) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+        width: 34, height: 34,
+        alignment: Alignment.center,
+        child: Text("$day",
+            style: const TextStyle(
+              fontFamily: "DMSans",
+              fontSize: 13,
+              color: Color(0xFFCCCCCC),
+              fontWeight: FontWeight.w400,
+            )),
+      ),
+    );
+  }
+
   Widget _buildLogSummaryWidget(String summary) {
     final sections = summary.split('\n\n');
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: sections.map((section) {
         final lines = section.split('\n');
         if (lines.isEmpty) return const SizedBox.shrink();
-
         final categoryLabel = lines.first;
         final rawItems = lines.length > 1
             ? lines[1].split('  ·  ').map((s) => s.trim()).toList()
             : <String>[];
-
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: Column(
@@ -848,23 +1095,15 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
               Text(
                 categoryLabel.toUpperCase(),
                 style: const TextStyle(
-                  fontFamily: "DMSans",
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black45,
+                  fontFamily: "DMSans", fontSize: 10,
+                  fontWeight: FontWeight.w600, color: Colors.black45,
                   letterSpacing: 0.8,
                 ),
               ),
               const SizedBox(height: 6),
               Wrap(
-                spacing: 6,
-                runSpacing: 6,
+                spacing: 6, runSpacing: 6,
                 children: rawItems.map((item) {
-                  // Detect discharge items encoded as "assetPath|label"
-                  final isImageItem = item.contains('|');
-                  final displayLabel = isImageItem ? item.split('|').last : item;
-                  final assetPath   = isImageItem ? item.split('|').first : null;
-
                   return Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
@@ -873,28 +1112,12 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
                       border: Border.all(
                           color: const Color(0xFFB56A7E).withOpacity(0.35)),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (assetPath != null) ...[
-                          Image.asset(
-                            assetPath,
-                            width: 16,
-                            height: 16,
-                            fit: BoxFit.contain,
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        Text(
-                          displayLabel,
-                          style: const TextStyle(
-                            fontFamily: "DMSans",
-                            fontSize: 11.5,
-                            color: Color(0xFF7A3B50),
-                          ),
-                        ),
-                      ],
-                    ),
+                    child: Text(item,
+                        style: const TextStyle(
+                          fontFamily: "DMSans",
+                          fontSize: 11.5,
+                          color: Color(0xFF7A3B50),
+                        )),
                   );
                 }).toList(),
               ),
@@ -909,240 +1132,67 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
     final controller = TextEditingController(text: current);
     showDialog(
       context: context,
-      builder: (ctx) {
-        return Dialog(
-          // Allows dialog to reposition when keyboard appears
-          insetPadding: const EdgeInsets.only(
-            left: 24,
-            right: 24,
-            bottom: 24,
-            top: 24,
-          ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+      builder: (ctx) => Dialog(
+        insetPadding: EdgeInsets.only(
+          left: 24, right: 24,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          top: 24,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(
+                fontFamily: "DMSans", fontSize: 16,
+                color: Color(0xFF3A1F3D), fontWeight: FontWeight.bold,
+              )),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                maxLines: 5,
+                autofocus: true,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: const Color(0xFFF7F3F5),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.all(12),
+                ),
+                style: const TextStyle(fontFamily: "DMSans", fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontFamily: "DMSans",
-                      fontSize: 16,
-                      color: Color(0xFF3A1F3D),
-                      fontWeight: FontWeight.bold,
-                    ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text("Cancel",
+                        style: TextStyle(fontFamily: "DMSans", color: Colors.black54)),
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: controller,
-                    maxLines: 5,
-                    autofocus: true,
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: const Color(0xFFF7F3F5),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.all(12),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFB56A7E),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
-                    style: const TextStyle(fontFamily: "DMSans", fontSize: 13),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        child: const Text(
-                          "Cancel",
-                          style: TextStyle(fontFamily: "DMSans", color: Colors.black54),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFB56A7E),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
-                        ),
-                        onPressed: () {
-                          onSave(controller.text);
-                          saveNotes(_selectedDate);
-                          Navigator.pop(ctx);
-                        },
-                        child: const Text(
-                          "Save",
-                          style: TextStyle(fontFamily: "DMSans", color: Colors.white),
-                        ),
-                      ),
-                    ],
+                    onPressed: () {
+                      onSave(controller.text);
+                      saveNotes(_selectedDate);
+                      Navigator.pop(ctx);
+                    },
+                    child: const Text("Save",
+                        style: TextStyle(fontFamily: "DMSans", color: Colors.white)),
                   ),
                 ],
               ),
-            ),
+            ],
           ),
-        );
-      },
-    );
-  }
-
-  Future<(List<DateTime>, List<DateTime>, List<DateTime>, List<DateTime>, List<DateTime>)>
-  getCycleData() async {
-    final user = FirebaseAuth.instance.currentUser;
-    final history = FirebaseFirestore.instance
-        .collection('cycle').doc(user!.uid).collection('cycle history');
-    final allData = await history.get();
-
-    List<DateTime> startDate = allData.docs
-        .map((doc) => (doc.get('start date') as Timestamp).toDate()).toList();
-    List<DateTime> endDate = allData.docs
-        .map((doc) => (doc.get('period end') as Timestamp).toDate()).toList();
-    List<DateTime> startFertile = allData.docs
-        .map((doc) => (doc.get('fertile start') as Timestamp).toDate()).toList();
-    List<DateTime> endFertile = allData.docs
-        .map((doc) => (doc.get('fertile end') as Timestamp).toDate()).toList();
-    List<DateTime> ovulation = allData.docs
-        .map((doc) => (doc.get('ovulation') as Timestamp).toDate()).toList();
-
-    return (startDate, endDate, startFertile, endFertile, ovulation);
-  }
-
-  void _refreshData() async {
-    final data = await getCycleData();
-    setState(() {
-      startDate    = data.$1;
-      endDate      = data.$2;
-      startFertile = data.$3;
-      endFertile   = data.$4;
-      ovulation    = data.$5;
-    });
-  }
-
-  Widget _buildDayCell(int day) {
-    return FutureBuilder(
-      future: getCycleData(),
-      builder: (context, snapshot) {
-        final isSelected = day == _selectedDate.day &&
-            _selectedMonth.month == _selectedDate.month &&
-            _selectedMonth.year  == _selectedDate.year;
-        final thisDay = DateTime(_selectedMonth.year, _selectedMonth.month, day);
-        final isToday = day == _today.day &&
-            _selectedMonth.month == _today.month &&
-            _selectedMonth.year  == _today.year;
-
-        Color bgColor = Colors.transparent;
-        Color textColor = isToday ? const Color(0xFF884456) : Colors.black87;
-        bool isPeriod = false;
-        bool isFertile = false;
-        bool isOvulation = false;
-
-        if (snapshot.hasData) {
-          final (startDate, endDate, startFertile, endFertile, ovulation) = snapshot.data!;
-          for (int i = 0; i < startDate.length; i++) {
-            final date = DateTime(_selectedMonth.year, _selectedMonth.month, day);
-            if ((date.isAfter(startDate[i]) || DateUtils.isSameDay(date, startDate[i])) &&
-                (date.isBefore(endDate[i]) || DateUtils.isSameDay(date, endDate[i]))) {
-              isPeriod = true;
-            }
-            if ((date.isAfter(startFertile[i]) || DateUtils.isSameDay(date, startFertile[i])) &&
-                (date.isBefore(endFertile[i]) || DateUtils.isSameDay(date, endFertile[i]))) {
-              isFertile = true;
-            }
-            if (DateUtils.isSameDay(date, ovulation[i])) {
-              isOvulation = true;
-            }
-          }
-        }
-
-        if (isOvulation) {
-          bgColor = const Color(0xFFaedbc8);
-        } else if (isPeriod) {
-          bgColor = const Color(0xFFe2acb5);
-        } else if (isFertile) {
-          bgColor = const Color(0xFFddcb9c);
-        }
-
-        return GestureDetector(
-          onTap: () {
-            getNotes(thisDay);
-            getLogText(thisDay);
-            setState(() {
-              _selectedDate = thisDay;
-              _isvalidDay = !_selectedDate.isAfter(_today);
-            });
-          },
-          onDoubleTap: () {
-            setState(() => _selectedDate = thisDay);
-            _openDailyLog(thisDay);
-          },
-          child: Center(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
-              width: 50,
-              height: isToday ? 50 : 45,
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(15),
-                border: isToday
-                    ? Border.all(color: const Color(0xFF884456), width: 1.8)
-                    : isSelected
-                    ? Border.all(color: Colors.black54, width: 1.5)
-                    : null,
-              ),
-              alignment: Alignment.center,
-              child: isToday
-                  ? Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text("Today",
-                      style: TextStyle(
-                        fontFamily: "CormorantGaramond",
-                        fontSize: 9,
-                        color: Color(0xFF884456),
-                        fontWeight: FontWeight.w600,
-                      )),
-                  const SizedBox(height: 1),
-                  Text("$day",
-                      style: const TextStyle(
-                        fontFamily: "DMSans",
-                        fontSize: 13,
-                        color: Color(0xFF884456),
-                        fontWeight: FontWeight.w500,
-                      )),
-                ],
-              )
-                  : Text("$day",
-                  style: TextStyle(
-                    fontFamily: "DMSans",
-                    fontSize: 13,
-                    color: textColor,
-                    fontWeight: FontWeight.w500,
-                  )),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildGhostCell(int day) {
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
-        width: 34,
-        height: 34,
-        alignment: Alignment.center,
-        child: Text("$day",
-            style: const TextStyle(
-              fontFamily: "DMSans",
-              fontSize: 13,
-              color: Color(0xFFCCCCCC),
-              fontWeight: FontWeight.w400,
-            )),
+        ),
       ),
     );
   }
@@ -1157,17 +1207,14 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
       children: [
         Padding(padding: const EdgeInsets.only(top: 19), child: child),
         Positioned(
-          top: 0,
-          left: 8,
+          top: 0, left: 8,
           child: Container(
             color: const Color(0xFFF7F3F5),
             padding: const EdgeInsets.symmetric(horizontal: 6),
             child: Text(label,
                 style: const TextStyle(
-                  fontFamily: "DMSans",
-                  fontSize: 25,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF3A1F3D),
+                  fontFamily: "DMSans", fontSize: 25,
+                  fontWeight: FontWeight.bold, color: Color(0xFF3A1F3D),
                 )),
           ),
         ),
@@ -1181,17 +1228,14 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
       children: [
         Padding(padding: const EdgeInsets.only(top: 14), child: child),
         Positioned(
-          top: 0,
-          left: 8,
+          top: 0, left: 8,
           child: Container(
             color: const Color(0xFFF7F3F5),
             padding: const EdgeInsets.symmetric(horizontal: 6),
             child: Text(label,
                 style: const TextStyle(
-                  fontFamily: "CormorantGaramond",
-                  fontSize: 18,
-                  color: Color(0xFF3A1F3D),
-                  letterSpacing: 0.3,
+                  fontFamily: "CormorantGaramond", fontSize: 18,
+                  color: Color(0xFF3A1F3D), letterSpacing: 0.3,
                 )),
           ),
         ),
@@ -1209,11 +1253,8 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
             borderRadius: BorderRadius.circular(8)),
         child: Text(label,
             style: const TextStyle(
-              fontFamily: "CormorantGaramond",
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-              letterSpacing: 0.8,
+              fontFamily: "CormorantGaramond", color: Colors.white,
+              fontWeight: FontWeight.w600, fontSize: 12, letterSpacing: 0.8,
             )),
       ),
     );
@@ -1223,16 +1264,13 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
     return Row(
       children: [
         Container(
-          width: 12,
-          height: 12,
+          width: 12, height: 12,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 5),
         Text(label,
             style: const TextStyle(
-              fontFamily: "CormorantGaramond",
-              fontSize: 12,
-              color: Colors.black54,
+              fontFamily: "CormorantGaramond", fontSize: 12, color: Colors.black54,
             )),
       ],
     );

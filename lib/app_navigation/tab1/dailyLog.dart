@@ -125,9 +125,11 @@ class _dailyLogState extends State<dailyLog> {
 
     if (user != null) {
       await FirebaseFirestore.instance
-          .collection('cycle')
+          .collection('users')
           .doc(user.uid)
-          .collection('logs')
+          .collection('cycle')
+          .doc('cycle info')
+          .collection('symptomsLogs')
           .doc(date.toString())
           .set({
         'log date':          date,
@@ -151,9 +153,11 @@ class _dailyLogState extends State<dailyLog> {
 
     if (user != null) {
       final log = await FirebaseFirestore.instance
-          .collection('cycle')
+          .collection('users')
           .doc(user.uid)
-          .collection('logs')
+          .collection('cycle')
+          .doc('cycle info')
+          .collection('symptomsLogs')
           .doc(date.toString())
           .get();
       if (mounted) {
@@ -176,9 +180,11 @@ class _dailyLogState extends State<dailyLog> {
 
     if (user != null) {
       final log = await FirebaseFirestore.instance
-          .collection('cycle')
+          .collection('users')
           .doc(user.uid)
-          .collection('logs')
+          .collection('cycle')
+          .doc('cycle info')
+          .collection('symptomsLogs')
           .doc(date.toString())
           .get();
       if (mounted) {
@@ -201,9 +207,11 @@ class _dailyLogState extends State<dailyLog> {
 
     if (user != null) {
       final log = await FirebaseFirestore.instance
-          .collection('cycle')
+          .collection('users')
           .doc(user.uid)
-          .collection('logs')
+          .collection('cycle')
+          .doc('cycle info')
+          .collection('symptomsLogs')
           .doc(date.toString())
           .get();
       if (mounted) {
@@ -226,9 +234,11 @@ class _dailyLogState extends State<dailyLog> {
 
     if (user != null) {
       final log = await FirebaseFirestore.instance
-          .collection('cycle')
+          .collection('users')
           .doc(user.uid)
-          .collection('logs')
+          .collection('cycle')
+          .doc('cycle info')
+          .collection('symptomsLogs')
           .doc(date.toString())
           .get();
       if (mounted) {

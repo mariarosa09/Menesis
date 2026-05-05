@@ -41,11 +41,13 @@ class _CycleLengthSettingsScreenState
 
     try {
       await FirebaseFirestore.instance
-          .collection('cycle')
+          .collection('users')
           .doc(uid)
+          .collection('cycle')
+          .doc('cycle info')
           .update({
         'cycle length': _length,
-        'smart_prediction': _smartPrediction,
+        'smart prediction': _smartPrediction,
       });
 
       if (mounted) {

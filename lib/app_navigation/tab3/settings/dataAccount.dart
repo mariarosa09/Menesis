@@ -213,8 +213,10 @@ class DataAccountScreen extends StatelessWidget {
             if (user == null) return;
 
             await FirebaseFirestore.instance
-                .collection('cycle')
+                .collection('users')
                 .doc(user.uid)
+                .collection('cycle')
+                .doc('cycle info')
                 .set({
               'cycle type': 'Regular',
               'cycle length': 28,
@@ -222,18 +224,18 @@ class DataAccountScreen extends StatelessWidget {
               'status': true,
               'emptyRecord': true,
               'setupComplete': false,
+              'smart prediction': true,
             });
 
             await FirebaseFirestore.instance
-                .collection('settings')
+                .collection('users')
                 .doc(user.uid)
+                .collection('setting')
+                .doc('notification')
                 .set({
-              'smart prediction': true,
-              'period notification': true,
-              'ovulation notification': false,
-              'log reminder': true,
-              'summary': false,
-              'setupComplete': false,
+              'daily log': true,
+              'fertile window': true,
+              'period approaching': true,
             });
 
             if (context.mounted) {

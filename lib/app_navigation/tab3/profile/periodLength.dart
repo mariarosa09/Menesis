@@ -50,8 +50,10 @@ class _PeriodLengthSettingsScreenState
 
     try {
       await FirebaseFirestore.instance
-          .collection('cycle')
+          .collection('users')
           .doc(uid)
+          .collection('cycle')
+          .doc('cycle info')
           .update({
         'period length': _length,
         'smart_prediction_period': _smartPrediction,

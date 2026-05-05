@@ -45,27 +45,22 @@ class _PeriodSetupScreenState extends State<PeriodSetupScreen> {
 
     if (user != null) {
       await FirebaseFirestore.instance
-          .collection('cycle')
-          .doc(user.uid)
+          .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
           .set({
         'cycle type': cycleType,
         'cycle length': cycleLength,
         'period length': periodLength,
         'status': true,
         'emptyRecord': true,
-        'setupComplete': true,
+        'smart prediction': smartPrediction,
       }, SetOptions(merge: true));
 
       await FirebaseFirestore.instance
-          .collection('settings')
-          .doc(user.uid)
+          .collection('users').doc(user.uid).collection('settings').doc('notifications')
           .set({
-        'smart prediction': smartPrediction,
-        'period notification': true,
-        'ovulation notification': false,
-        'log reminder': true,
-        'summary': false,
-        'setupComplete': true,
+        'daily log': true,
+        'fertile window': false,
+        'period approaching': true,
       }, SetOptions(merge: true));
     }
   }

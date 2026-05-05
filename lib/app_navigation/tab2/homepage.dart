@@ -291,8 +291,10 @@ class _HomePageState extends State<HomePage>
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       _userNextCycle = FirebaseFirestore.instance
-          .collection('cycle')
+          .collection('users')
           .doc(user.uid)
+          .collection('cycle')
+          .doc('cycle info')
           .snapshots()
           .listen((DocumentSnapshot userInfo) {
         final data = userInfo.data() as Map<String, dynamic>?;
@@ -301,10 +303,12 @@ class _HomePageState extends State<HomePage>
             setState(() => daysUntilNextCycle = 0);
           } else {
             _history = FirebaseFirestore.instance
-                .collection('cycle')
+                .collection('users')
                 .doc(user.uid)
-                .collection('cycle history')
-                .orderBy('start date', descending: true)
+                .collection('cycle')
+                .doc('cycle info')
+                .collection('periodLogs')
+                .orderBy('cycle start date', descending: true)
                 .limit(1)
                 .snapshots()
                 .listen((QuerySnapshot latest) {
@@ -312,7 +316,7 @@ class _HomePageState extends State<HomePage>
                 final cycle =
                 latest.docs.first.data() as Map<String, dynamic>;
                 final cycleEnd =
-                (cycle['end date'] as Timestamp).toDate();
+                (cycle['cycle end date'] as Timestamp).toDate();
                 final daysLeft =
                     (cycleEnd.difference(_now)) + const Duration(days: 1);
                 setState(() => daysUntilNextCycle = daysLeft.inDays);
@@ -328,8 +332,10 @@ class _HomePageState extends State<HomePage>
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       _userNextCycle = FirebaseFirestore.instance
-          .collection('cycle')
+          .collection('users')
           .doc(user.uid)
+          .collection('cycle')
+          .doc('cycle info')
           .snapshots()
           .listen((DocumentSnapshot userInfo) {
         final data = userInfo.data() as Map<String, dynamic>?;
@@ -338,10 +344,12 @@ class _HomePageState extends State<HomePage>
             setState(() => daysInCurrentCycle = 0);
           } else {
             _history = FirebaseFirestore.instance
-                .collection('cycle')
+                .collection('users')
                 .doc(user.uid)
-                .collection('cycle history')
-                .orderBy('start date', descending: true)
+                .collection('cycle')
+                .doc('cycle info')
+                .collection('periodLogs')
+                .orderBy('cycle start date', descending: true)
                 .limit(1)
                 .snapshots()
                 .listen((QuerySnapshot latest) {
@@ -349,7 +357,7 @@ class _HomePageState extends State<HomePage>
                 final cycle =
                 latest.docs.first.data() as Map<String, dynamic>;
                 final periodStart =
-                (cycle['start date'] as Timestamp).toDate();
+                (cycle['cycle start date'] as Timestamp).toDate();
                 // +1 so the first day of the period is Day 1 (not Day 0)
                 final dayInCycle = (_now.difference(periodStart)) +
                     const Duration(days: 1);
@@ -366,8 +374,10 @@ class _HomePageState extends State<HomePage>
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       _userNextCycle = FirebaseFirestore.instance
-          .collection('cycle')
+          .collection('users')
           .doc(user.uid)
+          .collection('cycle')
+          .doc('cycle info')
           .snapshots()
           .listen((DocumentSnapshot userInfo) {
         final data = userInfo.data() as Map<String, dynamic>?;
@@ -379,10 +389,12 @@ class _HomePageState extends State<HomePage>
             });
           } else {
             _history = FirebaseFirestore.instance
-                .collection('cycle')
+                .collection('users')
                 .doc(user.uid)
-                .collection('cycle history')
-                .orderBy('start date', descending: true)
+                .collection('cycle')
+                .doc('cycle info')
+                .collection('periodLogs')
+                .orderBy('cycle start date', descending: true)
                 .limit(1)
                 .snapshots()
                 .listen((QuerySnapshot latest) {
@@ -390,15 +402,15 @@ class _HomePageState extends State<HomePage>
                 final cycle =
                 latest.docs.first.data() as Map<String, dynamic>;
                 final periodStart =
-                (cycle['start date'] as Timestamp).toDate();
+                (cycle['cycle start date'] as Timestamp).toDate();
                 final periodEnd =
-                (cycle['period end'] as Timestamp).toDate();
+                (cycle['period end date'] as Timestamp).toDate();
                 final fertileStart =
-                (cycle['fertile start'] as Timestamp).toDate();
+                (cycle['fertile start date'] as Timestamp).toDate();
                 final fertileEnd =
-                (cycle['fertile end'] as Timestamp).toDate();
+                (cycle['fertile end date'] as Timestamp).toDate();
                 final ovulation =
-                (cycle['ovulation'] as Timestamp).toDate();
+                (cycle['ovulation date'] as Timestamp).toDate();
 
                 final dayInCycle = (_now.difference(periodStart)) +
                     const Duration(days: 1);
@@ -457,8 +469,10 @@ class _HomePageState extends State<HomePage>
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       _userNextCycle = FirebaseFirestore.instance
-          .collection('cycle')
+          .collection('users')
           .doc(user.uid)
+          .collection('cycle')
+          .doc('cycle info')
           .snapshots()
           .listen((DocumentSnapshot userInfo) {
         final data = userInfo.data() as Map<String, dynamic>?;
@@ -470,10 +484,12 @@ class _HomePageState extends State<HomePage>
             });
           } else {
             _history = FirebaseFirestore.instance
-                .collection('cycle')
+                .collection('users')
                 .doc(user.uid)
-                .collection('cycle history')
-                .orderBy('start date', descending: true)
+                .collection('cycle')
+                .doc('cycle info')
+                .collection('periodLogs')
+                .orderBy('cycle start date', descending: true)
                 .limit(1)
                 .snapshots()
                 .listen((QuerySnapshot latest) {
@@ -481,15 +497,15 @@ class _HomePageState extends State<HomePage>
                 final cycle =
                 latest.docs.first.data() as Map<String, dynamic>;
                 final periodStart =
-                (cycle['start date'] as Timestamp).toDate();
+                (cycle['cycle start date'] as Timestamp).toDate();
                 final periodEnd =
-                (cycle['period end'] as Timestamp).toDate();
+                (cycle['period end date'] as Timestamp).toDate();
                 final fertileStart =
-                (cycle['fertile start'] as Timestamp).toDate();
+                (cycle['fertile start date'] as Timestamp).toDate();
                 final fertileEnd =
-                (cycle['fertile end'] as Timestamp).toDate();
+                (cycle['fertile end date'] as Timestamp).toDate();
                 final ovulation =
-                (cycle['ovulation'] as Timestamp).toDate();
+                (cycle['ovulation date'] as Timestamp).toDate();
 
                 // ── Determine primary phase ─────────────
                 String phase;
@@ -542,8 +558,10 @@ class _HomePageState extends State<HomePage>
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       _userStat = FirebaseFirestore.instance
-          .collection('cycle')
+          .collection('users')
           .doc(user.uid)
+          .collection('cycle')
+          .doc('cycle info')
           .snapshots()
           .listen((DocumentSnapshot userInfo) {
         final data = userInfo.data() as Map<String, dynamic>?;
@@ -558,47 +576,59 @@ class _HomePageState extends State<HomePage>
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final userData = await FirebaseFirestore.instance
-          .collection('cycle')
+          .collection('users')
           .doc(user.uid)
+          .collection('cycle')
+          .doc('cycle info')
           .get();
       final bool first = userData['emptyRecord'];
 
       await FirebaseFirestore.instance
-          .collection('cycle')
+          .collection('users')
           .doc(user.uid)
+          .collection('cycle')
+          .doc('cycle info')
           .update({'status': false, 'emptyRecord': false});
 
       int cycleLength = userData['cycle length'];
 
       final userSetting = await FirebaseFirestore.instance
-          .collection('settings')
+          .collection('users')
           .doc(user.uid)
+          .collection('cycle')
+          .doc('cycle info')
           .get();
       final bool smartPrediction = userSetting['smart prediction'];
 
       if (smartPrediction && !first) {
         final history = FirebaseFirestore.instance
-            .collection('cycle')
-            .doc(user.uid)
-            .collection('cycle history');
+            .collection('users')
+          .doc(user.uid)
+          .collection('cycle')
+          .doc('cycle info')
+          .collection('periodLogs');
         final latest =
-        await history.orderBy('start date', descending: true).limit(1).get();
+        await history.orderBy('cycle start date', descending: true).limit(1).get();
         final latestId = latest.docs.first.id;
 
         final userCycleHistory = await FirebaseFirestore.instance
-            .collection('cycle')
+            .collection('users')
             .doc(user.uid)
-            .collection('cycle history')
+            .collection('cycle')
+            .doc('cycle info')
+            .collection('periodLogs')
             .doc(latestId)
             .get();
         final periodStart =
-        (userCycleHistory['start date'] as Timestamp).toDate();
+        (userCycleHistory['cycle start date'] as Timestamp).toDate();
         final previousCycleLength = _now.difference(periodStart);
 
         await FirebaseFirestore.instance
-            .collection('cycle')
+            .collection('users')
             .doc(user.uid)
-            .collection('cycle history')
+            .collection('cycle')
+            .doc('cycle info')
+            .collection('periodLogs')
             .doc(latestId)
             .update({'cycle length': previousCycleLength.inDays});
 
@@ -616,8 +646,10 @@ class _HomePageState extends State<HomePage>
         cycleLength = average;
 
         await FirebaseFirestore.instance
-            .collection('cycle')
+            .collection('users')
             .doc(user.uid)
+            .collection('cycle')
+            .doc('cycle info')
             .update({'cycle length': average});
 
         final fertileStart = periodStart
@@ -626,14 +658,16 @@ class _HomePageState extends State<HomePage>
         final ovulation = fertileEnd.subtract(const Duration(days: 1));
 
         await FirebaseFirestore.instance
-            .collection('cycle')
+            .collection('users')
             .doc(user.uid)
-            .collection('cycle history')
+            .collection('cycle')
+            .doc('cycle info')
+            .collection('periodLogs')
             .doc(latestId)
             .update({
-          'fertile start': fertileStart,
-          'fertile end': fertileEnd,
-          'ovulation': ovulation,
+          'fertile start date': fertileStart,
+          'fertile end date': fertileEnd,
+          'ovulation date': ovulation,
         });
       }
 
@@ -651,17 +685,19 @@ class _HomePageState extends State<HomePage>
       fertileEnd.subtract(const Duration(days: 1));
 
       await FirebaseFirestore.instance
-          .collection('cycle')
+          .collection('users')
           .doc(user.uid)
-          .collection('cycle history')
+          .collection('cycle')
+          .doc('cycle info')
+          .collection('periodLogs')
           .doc(_now.toString())
           .set({
-        'start date': startDate,
-        'period end': periodEnd,
-        'end date': endDate,
-        'fertile start': fertileStart,
-        'fertile end': fertileEnd,
-        'ovulation': ovulation,
+        'cycle start date': startDate,
+        'period end date': periodEnd,
+        'cycle end date': endDate,
+        'fertile start date': fertileStart,
+        'fertile end date': fertileEnd,
+        'ovulation date': ovulation,
         'cycle length': cycleLength,
         'period length': periodLength,
       });
@@ -676,40 +712,35 @@ class _HomePageState extends State<HomePage>
 
     if (user != null) {
       await FirebaseFirestore.instance
-          .collection('cycle')
-          .doc(user.uid)
+          .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
           .update({'status': true});
 
       final userSetting = await FirebaseFirestore.instance
-          .collection('settings')
-          .doc(user.uid)
+          .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
           .get();
       final bool smartPrediction = userSetting['smart prediction'];
 
       final history = FirebaseFirestore.instance
-          .collection('cycle')
-          .doc(user.uid)
-          .collection('cycle history');
+          .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
+          .collection('periodLogs');
       final latest =
-      await history.orderBy('start date', descending: true).limit(1).get();
+      await history.orderBy('cycle start date', descending: true).limit(1).get();
       final latestId = latest.docs.first.id;
       final cycleHistoryData = await FirebaseFirestore.instance
-          .collection('cycle')
-          .doc(user.uid)
-          .collection('cycle history')
+          .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
+          .collection('periodLogs')
           .doc(latestId)
           .get();
 
       if (smartPrediction) {
         final DateTime periodStart =
-        (cycleHistoryData['start date'] as Timestamp).toDate();
+        (cycleHistoryData['cycle start date'] as Timestamp).toDate();
         final currentPeriodLength =
             (date.difference(periodStart)) + const Duration(days: 1);
 
         await FirebaseFirestore.instance
-            .collection('cycle')
-            .doc(user.uid)
-            .collection('cycle history')
+            .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
+            .collection('periodLogs')
             .doc(latestId)
             .update({'period length': currentPeriodLength.inDays});
 
@@ -724,12 +755,11 @@ class _HomePageState extends State<HomePage>
         final average = (sumOfPeriodLength / periodLengths.length).ceil();
 
         await FirebaseFirestore.instance
-            .collection('cycle')
-            .doc(user.uid)
+            .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
             .update({'period length': average});
       }
 
-      await history.doc(latestId).update({'period end': date});
+      await history.doc(latestId).update({'period end date': date});
       if (mounted) setState(() => start = true);
     }
   }
