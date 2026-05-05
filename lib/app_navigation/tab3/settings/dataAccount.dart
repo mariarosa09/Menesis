@@ -109,6 +109,7 @@ class DataAccountScreen extends StatelessWidget {
                   _accountOption(
                     icon: Icons.cleaning_services_outlined,
                     title: "Clear Data",
+                    subtitle: "This action cannot be undone.",
                     onTap: () => _showClearDataDialog(context),
                   ),
 
@@ -118,6 +119,8 @@ class DataAccountScreen extends StatelessWidget {
                   _accountOption(
                     icon: Icons.delete_outline,
                     title: "Delete Account",
+                    subtitle:
+                    "Your account can be recovered within 30 days by logging in again. ",
                     isDanger: true,
                     onTap: () => _showDeleteAccountDialog(context),
                   ),
@@ -136,6 +139,7 @@ class DataAccountScreen extends StatelessWidget {
   Widget _accountOption({
     required IconData icon,
     required String title,
+    String? subtitle,
     bool isDanger = false,
     VoidCallback? onTap,
   }) {
@@ -146,19 +150,41 @@ class DataAccountScreen extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(15),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 14),
         child: Row(
+          crossAxisAlignment: subtitle == null
+              ? CrossAxisAlignment.center
+              : CrossAxisAlignment.start,
           children: [
-            Icon(icon,
-                color: isDanger ? Colors.red : const Color(0xFFB56A7E)),
+            Padding(
+              padding: EdgeInsets.only(top: subtitle == null ? 0 : 2),
+              child: Icon(icon,
+                  color: isDanger ? Colors.red : const Color(0xFFB56A7E)),
+            ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  color: isDanger ? Colors.red : Colors.black,
-                  fontWeight: FontWeight.w500,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: isDanger ? Colors.red : Colors.black,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: Colors.black54,
+                        fontSize: 12,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
             if (showArrow)
@@ -178,8 +204,7 @@ class DataAccountScreen extends StatelessWidget {
       builder: (_) => _customDialog(
         context,
         title: "Clear Data",
-        message:
-        "Are you sure you want to clear all app data?\n\nThis action cannot be undone.",
+        message: "Are you sure you want to clear all app data?",
         confirmText: "Clear",
         onConfirm: () async {
           Navigator.pop(context);
@@ -251,11 +276,7 @@ class DataAccountScreen extends StatelessWidget {
       builder: (_) => _customDialog(
         context,
         title: "Delete Account",
-        message:
-        "Are you sure you want to delete your account?\n\n"
-            "Your data will be kept for 30 days. You can recover "
-            "your account by logging in within that window.\n\n"
-            "After 30 days, everything is permanently removed.",
+        message: "Are you sure you want to delete your account?",
         confirmText: "Delete",
         isDanger: true,
         onConfirm: () async {
