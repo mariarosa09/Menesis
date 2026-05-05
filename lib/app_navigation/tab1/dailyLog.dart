@@ -39,15 +39,15 @@ class _dailyLogState extends State<dailyLog> {
 
   // FIX 1: " Discharge" appended to every label
   final List<Map<String, String>> dischargeTypes = [
-    {"label": "Clear/Transparent Discharge", "icon": "assets/images/discharge_icon/clear.png"},
-    {"label": "Milky White Discharge",        "icon": "assets/images/discharge_icon/milky_white.png"},
-    {"label": "Gray Discharge",               "icon": "assets/images/discharge_icon/gray.png"},
-    {"label": "Bright Yellow Discharge",      "icon": "assets/images/discharge_icon/bright_yellow.png"},
-    {"label": "Green Discharge",              "icon": "assets/images/discharge_icon/green.png"},
-    {"label": "Pink Discharge",               "icon": "assets/images/discharge_icon/pink.png"},
-    {"label": "Red Discharge",                "icon": "assets/images/discharge_icon/red.png"},
-    {"label": "Brown Discharge",              "icon": "assets/images/discharge_icon/brown.png"},
-    {"label": "Watery Discharge",             "icon": "assets/images/discharge_icon/watery.png"},
+    {"label": "Clear/Transparent", "icon": "assets/images/discharge_icon/clear.png"},
+    {"label": "Milky White",        "icon": "assets/images/discharge_icon/milky_white.png"},
+    {"label": "Gray",               "icon": "assets/images/discharge_icon/gray.png"},
+    {"label": "Bright Yellow",      "icon": "assets/images/discharge_icon/bright_yellow.png"},
+    {"label": "Green",              "icon": "assets/images/discharge_icon/green.png"},
+    {"label": "Pink",               "icon": "assets/images/discharge_icon/pink.png"},
+    {"label": "Red",                "icon": "assets/images/discharge_icon/red.png"},
+    {"label": "Brown",              "icon": "assets/images/discharge_icon/brown.png"},
+    {"label": "Watery",             "icon": "assets/images/discharge_icon/watery.png"},
   ];
 
   Set<String> selectedMoods      = {};
@@ -57,6 +57,7 @@ class _dailyLogState extends State<dailyLog> {
   final TextEditingController notesController = TextEditingController();
   // FIX 3: focus node so we can scroll the notes field into view
   final FocusNode _notesFocusNode = FocusNode();
+  final GlobalKey _notesFieldKey = GlobalKey();
 
   Map<String, String> get _symptomEmoji => {
     for (final s in symptoms) s["label"]!: s["icon"]!
@@ -248,295 +249,303 @@ class _dailyLogState extends State<dailyLog> {
         // FIX 3: push content up by the keyboard height when it's visible
         MediaQuery.of(context).viewInsets.bottom + 20,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Daily Log",
-                      style: TextStyle(
-                        fontFamily: 'CormorantGaramond',
-                        fontSize: 26,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF3A1F3D),
-                      ),
-                    ),
-                    Text(
-                      _formatDate(widget.selectedDate),
-                      style: const TextStyle(
-                        fontFamily: "DMSans",
-                        fontSize: 13,
-                        color: Colors.black54,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          const Text(
-            "PHYSICAL SYMPTOMS",
-            style: TextStyle(
-              fontFamily: "DMSans",
-              fontSize: 12,
-              color: Colors.black54,
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          Column(
-            children: [
-              Row(
-                children: symptoms.take(2).map((symptom) {
-                  return Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(5),
-                      child: SizedBox(
-                        height: 66,
-                        child: _SelectableBox(
-                          label: symptom["label"]!,
-                          icon: symptom["icon"]!,
-                          isSelected: selectedSymptoms.contains(symptom["label"]),
-                          onTap: () => setState(() {
-                            toggleSelection(selectedSymptoms, symptom["label"]!);
-                          }),
-                          iconSize: 20,
-                          imageSize: 30,
-                          fontSize: 11,
-                          borderRadius: 16,
-                          verticalPadding: 6,
-                          iconLabelSpacing: 3,
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 10),
-              GridView.builder(
-                itemCount: symptoms.skip(2).length,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 4,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                  mainAxisExtent: 84,
-                ),
-                itemBuilder: (context, index) {
-                  final symptom = symptoms.skip(2).toList()[index];
-                  return _SelectableBox(
-                    label: symptom["label"]!,
-                    icon: symptom["icon"]!,
-                    isSelected: selectedSymptoms.contains(symptom["label"]),
-                    onTap: () => setState(() {
-                      toggleSelection(selectedSymptoms, symptom["label"]!);
-                    }),
-                    iconSize: 20,
-                    imageSize: 30,
-                    fontSize: 10.5,
-                    borderRadius: 16,
-                    verticalPadding: 6,
-                    iconLabelSpacing: 3,
-                  );
-                },
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 16),
-
-          const Text(
-            "MOOD",
-            style: TextStyle(
-              fontFamily: "DMSans",
-              fontSize: 12,
-              color: Colors.black54,
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          GridView.builder(
-            itemCount: moods.length,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              mainAxisExtent: 84,
-            ),
-            itemBuilder: (context, index) {
-              final mood = moods[index];
-              return _SelectableBox(
-                label: mood["label"]!,
-                icon: mood["icon"]!,
-                isSelected: selectedMoods.contains(mood["label"]),
-                onTap: () => setState(() {
-                  toggleSelection(selectedMoods, mood["label"]!);
-                }),
-                iconSize: 20,
-                imageSize: 30,
-                fontSize: 10.5,
-                borderRadius: 16,
-                verticalPadding: 6,
-                iconLabelSpacing: 3,
-              );
-            },
-          ),
-
-          const SizedBox(height: 16),
-
-          const Text(
-            "DISCHARGE",
-            style: TextStyle(
-              fontFamily: "DMSans",
-              fontSize: 12,
-              color: Colors.black54,
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          GridView.builder(
-            itemCount: dischargeTypes.length,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              mainAxisExtent: 106,
-            ),
-            itemBuilder: (context, index) {
-              final type = dischargeTypes[index];
-              return _SelectableBox(
-                label: type["label"]!,
-                icon: type["icon"]!,
-                isSelected: selectedDischarge.contains(type["label"]),
-                onTap: () => setState(() {
-                  toggleSelection(selectedDischarge, type["label"]!);
-                }),
-                iconSize: 20,
-                imageSize: 40,
-                fontSize: 10.5,
-                borderRadius: 16,
-                verticalPadding: 6,
-                iconLabelSpacing: 4,
-              );
-            },
-          ),
-
-          const SizedBox(height: 20),
-
-          const Text(
-            "NOTES (OPTIONAL)",
-            style: TextStyle(
-              fontFamily: "DMSans",
-              fontSize: 12,
-              color: Colors.black54,
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          // FIX 3: ScrollIntoView so the keyboard never hides the notes field
-          TextField(
-            controller: notesController,
-            focusNode: _notesFocusNode,
-            maxLines: 3,
-            onTap: () {
-              // Give the keyboard time to appear, then scroll to the field
-              Future.delayed(const Duration(milliseconds: 300), () {
-                Scrollable.ensureVisible(
-                  _notesFocusNode.context!,
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOut,
-                  alignment: 0.9,
-                );
-              });
-            },
-            decoration: InputDecoration(
-              hintText: "Any other details...",
-              hintStyle: const TextStyle(fontFamily: "DMSans"),
-              filled: true,
-              fillColor: const Color(0xFFFFFBFC),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(15),
-              ),
-              contentPadding: const EdgeInsets.all(14),
-            ),
-            style: const TextStyle(
-              fontFamily: "DMSans",
-              fontSize: 13,
-            ),
-          ),
-
-          const SizedBox(height: 30),
-
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFB56A7E),
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-              onPressed: () {
-                saveLog();
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (BuildContext builderContext) {
-                    Future.delayed(const Duration(seconds: 1), () {
-                      if (Navigator.of(builderContext).canPop()) {
-                        Navigator.pop(context);
-                        Navigator.of(builderContext).pop();
-                      }
-                    });
-                    return AlertDialog(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(22),
-                      ),
-                      backgroundColor: const Color(0xFFFFFBFC),
-                      title: const Text(
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
                         "Daily Log",
                         style: TextStyle(
                           fontFamily: 'CormorantGaramond',
-                          fontSize: 22,
+                          fontSize: 26,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF3A1F3D),
                         ),
                       ),
-                      content: const Text(
-                        "Log Saved!",
-                        style: TextStyle(
-                          fontSize: 14,
+                      Text(
+                        _formatDate(widget.selectedDate),
+                        style: const TextStyle(
+                          fontFamily: "DMSans",
+                          fontSize: 13,
                           color: Colors.black54,
                         ),
                       ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            const Text(
+              "PHYSICAL SYMPTOMS",
+              style: TextStyle(
+                fontFamily: "DMSans",
+                fontSize: 12,
+                color: Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            Column(
+              children: [
+                Row(
+                  children: symptoms.take(2).map((symptom) {
+                    return Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(5),
+                        child: SizedBox(
+                          height: 66,
+                          child: _SelectableBox(
+                            label: symptom["label"]!,
+                            icon: symptom["icon"]!,
+                            isSelected: selectedSymptoms.contains(symptom["label"]),
+                            onTap: () => setState(() {
+                              toggleSelection(selectedSymptoms, symptom["label"]!);
+                            }),
+                            iconSize: 20,
+                            imageSize: 30,
+                            fontSize: 11,
+                            borderRadius: 16,
+                            verticalPadding: 6,
+                            iconLabelSpacing: 3,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 10),
+                GridView.builder(
+                  itemCount: symptoms.skip(2).length,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    mainAxisExtent: 84,
+                  ),
+                  itemBuilder: (context, index) {
+                    final symptom = symptoms.skip(2).toList()[index];
+                    return _SelectableBox(
+                      label: symptom["label"]!,
+                      icon: symptom["icon"]!,
+                      isSelected: selectedSymptoms.contains(symptom["label"]),
+                      onTap: () => setState(() {
+                        toggleSelection(selectedSymptoms, symptom["label"]!);
+                      }),
+                      iconSize: 20,
+                      imageSize: 30,
+                      fontSize: 10.5,
+                      borderRadius: 16,
+                      verticalPadding: 6,
+                      iconLabelSpacing: 3,
                     );
                   },
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            const Text(
+              "MOOD",
+              style: TextStyle(
+                fontFamily: "DMSans",
+                fontSize: 12,
+                color: Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            GridView.builder(
+              itemCount: moods.length,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                mainAxisExtent: 84,
+              ),
+              itemBuilder: (context, index) {
+                final mood = moods[index];
+                return _SelectableBox(
+                  label: mood["label"]!,
+                  icon: mood["icon"]!,
+                  isSelected: selectedMoods.contains(mood["label"]),
+                  onTap: () => setState(() {
+                    toggleSelection(selectedMoods, mood["label"]!);
+                  }),
+                  iconSize: 20,
+                  imageSize: 30,
+                  fontSize: 10.5,
+                  borderRadius: 16,
+                  verticalPadding: 6,
+                  iconLabelSpacing: 3,
                 );
               },
-              child: const Text(
-                "Save Log",
-                style: TextStyle(
-                  fontFamily: "DMSans",
-                  color: Colors.white,
+            ),
+
+            const SizedBox(height: 16),
+
+            const Text(
+              "DISCHARGE",
+              style: TextStyle(
+                fontFamily: "DMSans",
+                fontSize: 12,
+                color: Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            GridView.builder(
+              itemCount: dischargeTypes.length,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                mainAxisExtent: 106,
+              ),
+              itemBuilder: (context, index) {
+                final type = dischargeTypes[index];
+                return _SelectableBox(
+                  label: type["label"]!,
+                  icon: type["icon"]!,
+                  isSelected: selectedDischarge.contains(type["label"]),
+                  onTap: () => setState(() {
+                    toggleSelection(selectedDischarge, type["label"]!);
+                  }),
+                  iconSize: 20,
+                  imageSize: 40,
+                  fontSize: 10.5,
+                  borderRadius: 16,
+                  verticalPadding: 6,
+                  iconLabelSpacing: 4,
+                );
+              },
+            ),
+
+            const SizedBox(height: 20),
+
+            const Text(
+              "NOTES (OPTIONAL)",
+              style: TextStyle(
+                fontFamily: "DMSans",
+                fontSize: 12,
+                color: Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // FIX 3: ScrollIntoView so the keyboard never hides the notes field
+            TextField(
+              key: _notesFieldKey,
+              controller: notesController,
+              focusNode: _notesFocusNode,
+              maxLines: 3,
+              onTap: () {
+                // Give the keyboard time to appear, then scroll to the field
+                Future.delayed(const Duration(milliseconds: 300), () {
+                  if (!mounted) return;
+
+                  final notesContext = _notesFieldKey.currentContext;
+                  if (notesContext == null) return;
+
+                  Scrollable.ensureVisible(
+                    notesContext,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOut,
+                    alignment: 0.2,
+                  );
+                });
+              },
+              decoration: InputDecoration(
+                hintText: "Any other details...",
+                hintStyle: const TextStyle(fontFamily: "DMSans"),
+                filled: true,
+                fillColor: const Color(0xFFFFFBFC),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                contentPadding: const EdgeInsets.all(14),
+              ),
+              style: const TextStyle(
+                fontFamily: "DMSans",
+                fontSize: 13,
+              ),
+            ),
+
+            const SizedBox(height: 30),
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFB56A7E),
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                onPressed: () {
+                  saveLog();
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (BuildContext builderContext) {
+                      Future.delayed(const Duration(seconds: 1), () {
+                        if (Navigator.of(builderContext).canPop()) {
+                          Navigator.pop(context);
+                          Navigator.of(builderContext).pop();
+                        }
+                      });
+                      return AlertDialog(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        backgroundColor: const Color(0xFFFFFBFC),
+                        title: const Text(
+                          "Daily Log",
+                          style: TextStyle(
+                            fontFamily: 'CormorantGaramond',
+                            fontSize: 22,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF3A1F3D),
+                          ),
+                        ),
+                        content: const Text(
+                          "Log Saved!",
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+                child: const Text(
+                  "Save Log",
+                  style: TextStyle(
+                    fontFamily: "DMSans",
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
