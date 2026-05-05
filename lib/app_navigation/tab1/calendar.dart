@@ -912,75 +912,77 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
       builder: (ctx) {
         return Dialog(
           // Allows dialog to reposition when keyboard appears
-          insetPadding: EdgeInsets.only(
+          insetPadding: const EdgeInsets.only(
             left: 24,
             right: 24,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            bottom: 24,
             top: 24,
           ),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontFamily: "DMSans",
-                    fontSize: 16,
-                    color: Color(0xFF3A1F3D),
-                    fontWeight: FontWeight.bold,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontFamily: "DMSans",
+                      fontSize: 16,
+                      color: Color(0xFF3A1F3D),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: controller,
-                  maxLines: 5,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: const Color(0xFFF7F3F5),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide.none,
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: controller,
+                    maxLines: 5,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFFF7F3F5),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.all(12),
                     ),
-                    contentPadding: const EdgeInsets.all(12),
+                    style: const TextStyle(fontFamily: "DMSans", fontSize: 13),
                   ),
-                  style: const TextStyle(fontFamily: "DMSans", fontSize: 13),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: const Text(
-                        "Cancel",
-                        style: TextStyle(fontFamily: "DMSans", color: Colors.black54),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text(
+                          "Cancel",
+                          style: TextStyle(fontFamily: "DMSans", color: Colors.black54),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFB56A7E),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFB56A7E),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
+                        onPressed: () {
+                          onSave(controller.text);
+                          saveNotes(_selectedDate);
+                          Navigator.pop(ctx);
+                        },
+                        child: const Text(
+                          "Save",
+                          style: TextStyle(fontFamily: "DMSans", color: Colors.white),
+                        ),
                       ),
-                      onPressed: () {
-                        onSave(controller.text);
-                        saveNotes(_selectedDate);
-                        Navigator.pop(ctx);
-                      },
-                      child: const Text(
-                        "Save",
-                        style: TextStyle(fontFamily: "DMSans", color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         );

@@ -142,133 +142,135 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Form(
-              key: _formKey,
-              onChanged: validateForm,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 15),
-                  Row(
-                    children: [
-                      Transform.translate(
-                        offset: const Offset(-15, 0),
-                        child: SizedBox(
-                          width: 45,
-                          height: 45,
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () => Navigator.pop(context),
-                              borderRadius: BorderRadius.circular(12),
-                              splashColor:
-                              const Color(0xFFB56A7E).withOpacity(0.2),
-                              highlightColor:
-                              const Color(0xFFB56A7E).withOpacity(0.3),
-                              child: const Center(
-                                child: Icon(Icons.arrow_back,
-                                    color: Color(0xFF3A1F3D)),
+            child: SingleChildScrollView(
+              child: Form(
+                key: _formKey,
+                onChanged: validateForm,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 15),
+                    Row(
+                      children: [
+                        Transform.translate(
+                          offset: const Offset(-15, 0),
+                          child: SizedBox(
+                            width: 45,
+                            height: 45,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => Navigator.pop(context),
+                                borderRadius: BorderRadius.circular(12),
+                                splashColor:
+                                const Color(0xFFB56A7E).withOpacity(0.2),
+                                highlightColor:
+                                const Color(0xFFB56A7E).withOpacity(0.3),
+                                child: const Center(
+                                  child: Icon(Icons.arrow_back,
+                                      color: Color(0xFF3A1F3D)),
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      Transform.translate(
-                        offset: const Offset(-15, 0),
-                        child: const Text(
-                          "Change Password",
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF3A1F3D),
+                        Transform.translate(
+                          offset: const Offset(-15, 0),
+                          child: const Text(
+                            "Change Password",
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF3A1F3D),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 30),
-
-                  // ── Current password (no eye, no empty-field error, inline wrong-password error) ──
-                  _styledInput(
-                    controller: currentPass,
-                    label: "CURRENT PASSWORD",
-                    validator: validateCurrentPassword,
-                    isPassword: true,
-                    isVisible: false,
-                    showEye: false,
-                    externalError: _currentPasswordError,
-                    onChanged: (_) {
-                      // Clear the inline error as soon as the user types again
-                      if (_currentPasswordError != null) {
-                        setState(() => _currentPasswordError = null);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 20),
-
-                  // ── New password (eye + match icon side by side) ──
-                  _styledInput(
-                    controller: newPass,
-                    label: "NEW PASSWORD",
-                    validator: validatePassword,
-                    isPassword: true,
-                    isVisible: showNew,
-                    toggleVisibility: () =>
-                        setState(() => showNew = !showNew),
-                    matchIcon: newHasText
-                        ? Icon(
-                      passwordsMatch
-                          ? Icons.check_circle
-                          : Icons.cancel,
-                      color:
-                      passwordsMatch ? Colors.green : Colors.red,
-                      size: 20,
-                    )
-                        : null,
-                  ),
-                  const SizedBox(height: 20),
-
-                  // ── Confirm password (eye + match icon side by side) ──
-                  _styledInput(
-                    controller: confirmPass,
-                    label: "RE-ENTER NEW PASSWORD",
-                    validator: validateConfirm,
-                    isPassword: true,
-                    isVisible: showConfirm,
-                    toggleVisibility: () =>
-                        setState(() => showConfirm = !showConfirm),
-                    matchIcon: confirmHasText
-                        ? Icon(
-                      passwordsMatch
-                          ? Icons.check_circle
-                          : Icons.cancel,
-                      color: passwordsMatch ? Colors.green : Colors.red,
-                      size: 20,
-                    )
-                        : null,
-                  ),
-                  const SizedBox(height: 35),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: (isValid && passwordsMatch)
-                            ? const Color(0xFFB56A7E)
-                            : Colors.grey.shade400,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(25),
-                        ),
-                      ),
-                      onPressed: (isValid && passwordsMatch)
-                          ? () async => await handleSubmit()
-                          : null,
-                      child: const Text("Update Password"),
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 30),
+
+                    // ── Current password (no eye, no empty-field error, inline wrong-password error) ──
+                    _styledInput(
+                      controller: currentPass,
+                      label: "CURRENT PASSWORD",
+                      validator: validateCurrentPassword,
+                      isPassword: true,
+                      isVisible: false,
+                      showEye: false,
+                      externalError: _currentPasswordError,
+                      onChanged: (_) {
+                        // Clear the inline error as soon as the user types again
+                        if (_currentPasswordError != null) {
+                          setState(() => _currentPasswordError = null);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 20),
+
+                    // ── New password (eye + match icon side by side) ──
+                    _styledInput(
+                      controller: newPass,
+                      label: "NEW PASSWORD",
+                      validator: validatePassword,
+                      isPassword: true,
+                      isVisible: showNew,
+                      toggleVisibility: () =>
+                          setState(() => showNew = !showNew),
+                      matchIcon: newHasText
+                          ? Icon(
+                        passwordsMatch
+                            ? Icons.check_circle
+                            : Icons.cancel,
+                        color:
+                        passwordsMatch ? Colors.green : Colors.red,
+                        size: 20,
+                      )
+                          : null,
+                    ),
+                    const SizedBox(height: 20),
+
+                    // ── Confirm password (eye + match icon side by side) ──
+                    _styledInput(
+                      controller: confirmPass,
+                      label: "RE-ENTER NEW PASSWORD",
+                      validator: validateConfirm,
+                      isPassword: true,
+                      isVisible: showConfirm,
+                      toggleVisibility: () =>
+                          setState(() => showConfirm = !showConfirm),
+                      matchIcon: confirmHasText
+                          ? Icon(
+                        passwordsMatch
+                            ? Icons.check_circle
+                            : Icons.cancel,
+                        color: passwordsMatch ? Colors.green : Colors.red,
+                        size: 20,
+                      )
+                          : null,
+                    ),
+                    const SizedBox(height: 35),
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: (isValid && passwordsMatch)
+                              ? const Color(0xFFB56A7E)
+                              : Colors.grey.shade400,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                        ),
+                        onPressed: (isValid && passwordsMatch)
+                            ? () async => await handleSubmit()
+                            : null,
+                        child: const Text("Update Password"),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

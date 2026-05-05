@@ -206,56 +206,58 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 15),
-                  _buildHeader(),
-                  const SizedBox(height: 20),
-                  _buildCurrentEmailDisplay(),
-                  const SizedBox(height: 20),
-                  _styledInput(
-                    controller: _emailCtrl,
-                    label: 'NEW EMAIL',
-                    hint: 'new@email.com',
-                    keyboardType: TextInputType.emailAddress,
-                    validator: _validateEmail,
-                  ),
-                  const SizedBox(height: 20),
-                  _styledInput(
-                    controller: _passwordCtrl,
-                    label: 'CURRENT PASSWORD',
-                    hint: 'Enter your current password',
-                    isPassword: true,
-                    isVisible: !_obscurePassword,
-                    toggleVisibility: () =>
-                        setState(() => _obscurePassword = !_obscurePassword),
-                    validator: _validatePassword,
-                  ),
-                  const SizedBox(height: 35),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _submit,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFB56A7E),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(25),
-                        ),
-                      ),
-                      child: const Text('Verify New Email'),
+            child: SingleChildScrollView(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 15),
+                    _buildHeader(),
+                    const SizedBox(height: 20),
+                    _buildCurrentEmailDisplay(),
+                    const SizedBox(height: 20),
+                    _styledInput(
+                      controller: _emailCtrl,
+                      label: 'NEW EMAIL',
+                      hint: 'new@email.com',
+                      keyboardType: TextInputType.emailAddress,
+                      validator: _validateEmail,
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildInfoNote(
-                    'Enter your current password to confirm your identity. '
-                        "We'll then send a verification link to your new email address.",
-                  ),
-                ],
+                    const SizedBox(height: 20),
+                    _styledInput(
+                      controller: _passwordCtrl,
+                      label: 'CURRENT PASSWORD',
+                      hint: 'Enter your current password',
+                      isPassword: true,
+                      isVisible: !_obscurePassword,
+                      toggleVisibility: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
+                      validator: _validatePassword,
+                    ),
+                    const SizedBox(height: 35),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFB56A7E),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                        ),
+                        child: const Text('Verify New Email'),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildInfoNote(
+                      'Enter your current password to confirm your identity. '
+                          "We'll then send a verification link to your new email address.",
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
