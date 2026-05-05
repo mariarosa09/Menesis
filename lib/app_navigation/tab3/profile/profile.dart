@@ -138,7 +138,7 @@ class _ManageProfileScreenState extends State<ManageProfileScreen> {
 
   void getPeriodLength() async {
     String? authUid = FirebaseAuth.instance.currentUser?.uid;
-    DocumentSnapshot userPeriod = await FirebaseFirestore.instance.collection('cycle').doc(authUid).get();
+    DocumentSnapshot userPeriod = await FirebaseFirestore.instance.collection('users').doc(authUid).collection('cycle').doc('cycle info').get();
     setState(() {
       periodLength = userPeriod['period length'].toString();
     });
@@ -146,7 +146,7 @@ class _ManageProfileScreenState extends State<ManageProfileScreen> {
 
   void getCycleLength() async {
     String? authUid = FirebaseAuth.instance.currentUser?.uid;
-    DocumentSnapshot userCycle = await FirebaseFirestore.instance.collection('cycle').doc(authUid).get();
+    DocumentSnapshot userCycle = await FirebaseFirestore.instance.collection('users').doc(authUid).collection('cycle').doc('cycle info').get();
     setState(() {
       cycleLength = userCycle['cycle length'].toString();
     });
