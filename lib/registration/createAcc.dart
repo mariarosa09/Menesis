@@ -1,59 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:menesis_app/app_navigation/tab2/homepage.dart';
 import 'package:menesis_app/auth/presentation/auth_cubit.dart';
 import 'package:menesis_app/registration/initialLength.dart';
-
-// ============================================================
-// NOTE: Uncomment the block below ONLY if running this file
-// as a standalone app (for testing purposes).
-// Sa actual project, huwag i-uncomment ito — baka mag-conflict
-// sa existing main.dart.
-// ============================================================
-/*
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Mēnesis',
-      home: const CreateAccountScreen(),
-    );
-  }
-}
-*/
-
-// TODO: [ADDING] I-save ang bagong account sa database
-// Pagka-register ng user, i-store ang kanilang info (name, email, hashed password, at auto-generated username)
-// sa isang database (e.g., Firebase Firestore, Supabase, o SQLite).
-// The code should be placed here
-
-// TODO: [ADDING] Auto-generate username pagka-register
-// Gumawa ng logic na mag-a-auto-generate ng unique username (e.g., @user_mēnesis_4821).
-// Bibigyan ng pagpipilian ang user na baguhin ito later sa settings screen —
-// similar sa TikTok/Twitter na may default username muna bago palitan.
-// The code should be placed here
-
-// TODO: [ADDING] After registration, i-navigate sa initialLength screen
-// Kapag successful ang registration, i-redirect ang user sa initialLength.dart screen
-// para itanong ang period at cycle length. Ang screen na ito ay mag-aappear ONCE lang
-// para sa mga bagong users (first-time setup). Gumamit ng flag sa database o
-// SharedPreferences para ma-track kung nagawa na ito ng user.
-// The code should be placed here
-
-// ============================================================
-// CreateAccountScreen — StatefulWidget
-// This is the main registration screen ng app. Dito naglalagay
-// ng details ang user para gumawa ng account.
-// ============================================================
 
 class CreateAccountScreen extends StatefulWidget {
   const CreateAccountScreen({super.key});
@@ -63,11 +14,6 @@ class CreateAccountScreen extends StatefulWidget {
 }
 
 class _CreateAccountScreenState extends State<CreateAccountScreen> {
-  // ============================================================
-  // Form Key & Text Controllers
-  // Ginagamit ang _formKey para ma-validate ang buong form.
-  // Bawat controller ay naka-assign sa isang specific text field.
-  // ============================================================
   final _formKey = GlobalKey<FormState>();
 
   final firstNameController = TextEditingController();
@@ -77,20 +23,36 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
 
-  // ============================================================
-  // Password Visibility & Form Validity State
-  // obscure1/2 — controls kung makikita o hindi ang password.
-  // isValid — kung true, naka-enable ang Register button.
-  // ============================================================
   bool obscure1 = true;
   bool obscure2 = true;
-  bool isValid = false;
+  bool _registerTapped = false; // Only show errors after first tap
+  bool _isCheckingEmail = false;
 
-  // ============================================================
-  // dispose() — Memory Cleanup
-  // IMPORTANT: I-dispose ang lahat ng TextEditingControllers
-  // para maiwasan ang memory leaks kapag nag-leave ng screen ang user.
-  // ============================================================
+  // ── Granular password requirement flags ──────────────────────────────────
+  bool _pwHasLength = false;
+  bool _pwHasUpper = false;
+  bool _pwHasLower = false;
+  bool _pwHasNumber = false;
+  bool _pwHasSymbol = false;
+
+  @override
+  void initState() {
+    super.initState();
+    passwordController.addListener(_onPasswordChanged);
+    confirmPasswordController.addListener(() => setState(() {}));
+  }
+
+  void _onPasswordChanged() {
+    final v = passwordController.text;
+    setState(() {
+      _pwHasLength = v.length >= 8 && v.length <= 50;
+      _pwHasUpper = v.contains(RegExp(r'[A-Z]'));
+      _pwHasLower = v.contains(RegExp(r'[a-z]'));
+      _pwHasNumber = v.contains(RegExp(r'[0-9]'));
+      _pwHasSymbol = v.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>_\-+=\[\]\\\/`~;]'));
+    });
+  }
+
   @override
   void dispose() {
     firstNameController.dispose();
@@ -102,221 +64,282 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     super.dispose();
   }
 
-  // ============================================================
-  // validateForm()
-  // Tine-trigger ito sa bawat pagbabago sa form (onChanged).
-  // Sinisigurado na:
-  //   - Valid lahat ng fields na may validator
-  //   - Hindi blank ang email
-  //   - Magkatugma ang password at confirm password
-  // Kapag valid lahat, nag-a-enable ang Register button.
-  // ============================================================
-  void validateForm() {
-    final formValid = _formKey.currentState?.validate() ?? false;
-    final emailNotEmpty = emailController.text.isNotEmpty;
-    final passwordsMatch =
-        passwordController.text == confirmPasswordController.text &&
-            passwordController.text.isNotEmpty &&
-            confirmPasswordController.text.isNotEmpty;
+  // ── Derived getters ──────────────────────────────────────────────────────
 
-    setState(() {
-      isValid = formValid && emailNotEmpty && passwordsMatch;
+  bool get _passwordValid =>
+      _pwHasLength && _pwHasUpper && _pwHasLower && _pwHasNumber && _pwHasSymbol;
+
+  bool get _passwordsMatch =>
+      passwordController.text.isNotEmpty &&
+          confirmPasswordController.text.isNotEmpty &&
+          passwordController.text == confirmPasswordController.text;
+
+  bool get _emailValid =>
+      RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(emailController.text.trim());
+
+  bool get _formComplete =>
+      firstNameController.text.trim().isNotEmpty &&
+          emailController.text.trim().isNotEmpty &&
+          _emailValid &&
+          _passwordValid &&
+          _passwordsMatch;
+
+  // ── Auto-capitalize first letter ─────────────────────────────────────────
+  String _capitalizeFirst(String value) {
+    if (value.isEmpty) return value;
+    return value[0].toUpperCase() + value.substring(1);
+  }
+
+  // ============================================================
+  // _isSoftDeleted()
+  // ============================================================
+  Future<bool> _isSoftDeleted(String email) async {
+    final query = await FirebaseFirestore.instance
+        .collection('users')
+        .where('email', isEqualTo: email)
+        .where('deleted', isEqualTo: true)
+        .limit(1)
+        .get();
+
+    if (query.docs.isEmpty) return false;
+
+    final data = query.docs.first.data();
+    final deletedAt = data['deletedAt'] as Timestamp?;
+    if (deletedAt == null) return true;
+
+    const kWindowDays = 30;
+    final expiresAt =
+    deletedAt.toDate().add(const Duration(days: kWindowDays));
+    return DateTime.now().isBefore(expiresAt);
+  }
+
+  // ============================================================
+  // register()
+  // ============================================================
+  Future<void> register() async {
+    setState(() => _registerTapped = true);
+
+    if (!_formComplete) return;
+
+    final email = emailController.text.trim();
+
+    setState(() => _isCheckingEmail = true);
+
+    try {
+      final softDeleted = await _isSoftDeleted(email);
+      if (!mounted) return;
+      if (softDeleted) {
+        setState(() => _isCheckingEmail = false);
+        _showSoftDeletedEmailDialog();
+        return;
+      }
+    } catch (_) {
+      // Fall through — let Firebase Auth surface duplicate-email errors.
+    }
+
+    setState(() => _isCheckingEmail = false);
+
+    final fname = firstNameController.text.trim();
+    final mi = middleInitialController.text.trim();
+    final lname = surnameController.text.trim();
+    final password = passwordController.text.trim();
+
+    if (!mounted) return;
+    context.read<AuthCubit>().register(fname, mi, lname, email, password);
+  }
+
+  // ============================================================
+  // _showSoftDeletedEmailDialog()
+  // ============================================================
+  void _showSoftDeletedEmailDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape:
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        backgroundColor: const Color(0xFFFFFBFC),
+        title: const Text(
+          "Account Pending Deletion",
+          style: TextStyle(
+            fontFamily: 'CormorantGaramond',
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF3A1F3D),
+          ),
+        ),
+        content: const Text(
+          "This email belongs to an account that is scheduled for deletion.\n\n"
+              "You can log in with that account to recover it within the 30-day "
+              "window, or wait until the account is permanently removed before "
+              "registering again.",
+          style: TextStyle(fontSize: 14, color: Colors.black54, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              "OK",
+              style: TextStyle(color: Colors.black45, fontSize: 14),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // _parseAuthError()
+  // ============================================================
+  String _parseAuthError(AuthError state) {
+    final code = state.message;
+    if (code.contains('email-already-in-use')) {
+      return 'Email is already in use.';
+    } else if (code.contains('invalid-email')) {
+      return 'Invalid email format.';
+    } else if (code.contains('weak-password')) {
+      return 'Password is too weak.';
+    } else {
+      return code.isNotEmpty ? code : 'Registration failed. Please try again.';
+    }
+  }
+
+  // ============================================================
+  // addUserDetails()
+  // ============================================================
+  Future<void> addUserDetails() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final existingDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+
+    if (existingDoc.exists) {
+      final data = existingDoc.data();
+      final alreadyDeleted = data?['deleted'] as bool? ?? false;
+      if (alreadyDeleted) return;
+    }
+
+    final fname = firstNameController.text.trim();
+    final mi = middleInitialController.text.trim();
+    final lname = surnameController.text.trim();
+    final email = emailController.text.trim();
+
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+      'first name': fname,
+      'middle initial': mi,
+      'last name': lname,
+      'email': email,
+      'username': email.substring(0, email.indexOf('@')),
+      'created at': FieldValue.serverTimestamp(),
+      'deleted': false,
     });
   }
 
-  void register() {
-    final String fname = firstNameController.text;
-    final String mi = middleInitialController.text;
-    final String lname = surnameController.text;
-    final String email = emailController.text.trim();
-    final String password = passwordController.text.trim();
-
-    final authCubit = context.read<AuthCubit>();
-
-    authCubit.register(fname, mi, lname, email, password);
-    
+  Future<void> _onRegistrationSuccess() async {
+    await addUserDetails();
   }
 
-  // If registration failed this will display a message
-  Future<String> _errorCatching() async {
-    try {
-      final FirebaseAuth firebaseAuth = FirebaseAuth.instance;
-      await firebaseAuth.createUserWithEmailAndPassword(
-        email: emailController.text.trim(), 
-        password: passwordController.text.trim());
-      return "success";  
-    }
-    on FirebaseAuthException catch (e) {
-      if (e.code == "email-already-in-use") {
-        return "Email is already used.";
-      }
-      else if (e.code == "invalid-email") {
-        return "Invalid email format";
-      }
-      else {
-        return "${e.message}";
-      }
-    }
-  }
-
-  // Saves user's data
-  Future addUserDetails() async {
-    final String fname = firstNameController.text.trim();
-    final String mi = middleInitialController.text.trim();
-    final String lname = surnameController.text.trim();
-    final String email = emailController.text.trim();
-    final String password = passwordController.text.trim();
-    final user = FirebaseAuth.instance.currentUser;
-  
-  if (user != null) {
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'first name': fname,
-        'middle initial': mi,
-        'last name': lname,
-        'email': email,
-        'password': password,
-        'password set date': DateTime.now(),
-        'username': email.substring(0, email.indexOf('@'))
-      });
-    }
-  } 
-
-  void initialSetup() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      await FirebaseFirestore.instance.collection('cycle').doc(user.uid).set({
-        'cycle type': 'Regular',
-        'cycle length': 28,
-        'period length': 3,
-        'status': true,
-        'emptyRecord': true
-      });
-    }
-  }
-
-// ============================================================
-  // build() — Main UI
-  // Nagtatayo ng buong Create Account screen.
-  // Gumagamit ng SafeArea para hindi matakpan ng notch/status bar,
-  // at SingleChildScrollView para ma-scroll ang form kapag maliit ang screen.
-  // Inalis ang Stack wrapper dahil wala itong ibang layers na ginagamit —
-  // sapat na ang Padding directly.
+  // ============================================================
+  // BUILD
   // ============================================================
   @override
   Widget build(BuildContext context) {
+    final bool confirmNotEmpty = confirmPasswordController.text.isNotEmpty;
+
     return BlocListener<AuthCubit, AuthState>(
-      listener: (context, state) {
-        if (state is Authenticated) {
-          initialSetup();
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const PeriodSetupScreen())
-          );
-        }
-        else if (state is NeedVerification) {
-          addUserDetails();
+      listener: (context, state) async {
+        if (state is NeedVerification) {
+          await _onRegistrationSuccess();
+          if (!context.mounted) return;
           showDialog(
-            context: context, 
-            builder: (context) {
-              return AlertDialog(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(22),
+            context: context,
+            builder: (_) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22)),
+              backgroundColor: const Color(0xFFFFFBFC),
+              title: const Text(
+                "Register",
+                style: TextStyle(
+                  fontFamily: 'CormorantGaramond',
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF3A1F3D),
                 ),
-                backgroundColor: const Color(0xFFFFFBFC),
-                title: const Text(
-                  "Register",
-                  style: TextStyle(
-                    fontFamily: 'CormorantGaramond',
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF3A1F3D),
-                    ),
-                  ),
-                  content: Text(
-                    "Account verification sent on your email!\nPlease check your inbox.",
-                    style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.black54,
-                  ),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop(); 
-                      emailController.clear();
-                    },
-                    child: const Text(
-                      "OK",
-                      style: TextStyle(
-                        color: Colors.black45,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () async {
-                      try {
-                        final user = FirebaseAuth.instance.currentUser;
-                        if (user != null) {
-                          await user.sendEmailVerification();
-                          // Feedback is important!
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar( // Removed 'const'
-                              content: Text("Verification email resent!"),
-                              backgroundColor: const Color(0xFFB56A7E),
-                            ),
-                          );
-                        }
-                      } on FirebaseAuthException catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar( // Removed 'const'
-                              content: Text("${e.message}"),
-                              backgroundColor: const Color(0xFFB56A7E),
-                            ),
-                        ); // This captures "too many requests" errors
-                      }
-                      catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar( // Removed 'const'
-                              content: Text("Error: $e"),
-                              backgroundColor: const Color(0xFFB56A7E),
-                            ),
-                        ); // This captures "too many requests" errors
-                      }
-                    },
-                    child: const Text(
-                      "Resend Email",
-                      style: TextStyle(
-                        color: Color(0xFFB56A7E),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            }
-          );
-        }
-        else if (state is Error) {}
-        else if (state is Verified) {
-          final state = context.read<AuthCubit>().state;
-          if(state is Verified) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => PeriodSetupScreen()),
-            );
-          }
-        }
-        else if (state is Unauthenticated) {
-          _errorCatching().then((errorMessage) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar( // Removed 'const'
-                content: Text(errorMessage),
-                backgroundColor: const Color(0xFFB56A7E),
               ),
-            );
-          });
+              content: const Text(
+                "Account verification sent on your email!\nPlease check your inbox.",
+                style: TextStyle(fontSize: 14, color: Colors.black54),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    emailController.clear();
+                  },
+                  child: const Text("OK",
+                      style: TextStyle(color: Colors.black45, fontSize: 14)),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    try {
+                      final u = FirebaseAuth.instance.currentUser;
+                      if (u != null) {
+                        await u.sendEmailVerification();
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("Verification email resent!"),
+                            backgroundColor: Color(0xFFB56A7E),
+                          ),
+                        );
+                      }
+                    } on FirebaseAuthException catch (e) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(e.message ?? 'An error occurred.'),
+                          backgroundColor: const Color(0xFFB56A7E),
+                        ),
+                      );
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("Error: $e"),
+                          backgroundColor: const Color(0xFFB56A7E),
+                        ),
+                      );
+                    }
+                  },
+                  child: const Text(
+                    "Resend Email",
+                    style: TextStyle(
+                      color: Color(0xFFB56A7E),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        } else if (state is AuthError) {
+          final message = _parseAuthError(state);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: const Color(0xFFB56A7E),
+            ),
+          );
+        } else if (state is VerifiedNeedsSetup) {
+          if (!context.mounted) return;
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const PeriodSetupScreen()),
+                (route) => false,
+          );
         }
       },
       child: Scaffold(
@@ -326,20 +349,13 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 25),
             child: Form(
               key: _formKey,
-              onChanged: validateForm,
               child: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 15),
 
-                    // ============================================================
-                    // Header Row — Back Button + Title
-                    // Ang back arrow ay nagre-return sa previous screen.
-                    // Ang title na "Create Account" ay nakalagay sa tabi nito.
-                    // Ginamit ang Transform.translate para ma-align nang maayos
-                    // ang icon at text nang hindi gumagamit ng dagdag na padding.
-                    // ============================================================
+                    // ── Header ──────────────────────────────────────────
                     Row(
                       children: [
                         Transform.translate(
@@ -357,10 +373,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                                 highlightColor:
                                 const Color(0xFFB56A7E).withOpacity(0.3),
                                 child: const Center(
-                                  child: Icon(
-                                    Icons.arrow_back,
-                                    color: Color(0xFF3A1F3D),
-                                  ),
+                                  child: Icon(Icons.arrow_back,
+                                      color: Color(0xFF3A1F3D)),
                                 ),
                               ),
                             ),
@@ -379,11 +393,6 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                         ),
                       ],
                     ),
-
-                    // ============================================================
-                    // Subtitle Text
-                    // Simpleng instructional text para ma-guide ang user.
-                    // ============================================================
                     const SizedBox(height: 5),
                     const Text(
                       "Fill in your details to get started",
@@ -391,124 +400,81 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                     ),
                     const SizedBox(height: 30),
 
-                    // ============================================================
-                    // First Name + Middle Initial Row
-                    // Dalawang fields na nakalagay side by side.
-                    // Ang First Name ay may mas malaking flex (2) kumpara sa M.I. (1).
-                    // ============================================================
+                    // ── First Name + M.I. ───────────────────────────────
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
                           flex: 2,
-                          child: buildField(
-                            "First Name",
+                          child: _buildNameField(
+                            label: "First Name *",
                             controller: firstNameController,
+                            showError: _registerTapped &&
+                                firstNameController.text.trim().isEmpty,
+                            errorText: "First name is required.",
                           ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           flex: 1,
-                          child: buildField(
-                            "M.I.",
-                            controller: middleInitialController,
-                          ),
+                          child: _buildMiddleInitialField(),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 30),
+                    const SizedBox(height: 20),
 
-                    // ============================================================
-                    // Surname, Email, Password, Confirm Password Fields
-                    // Bawat isa ay gumagamit ng buildField() helper widget.
-                    // May validators ang email at password fields para sa
-                    // format at length checking.
-                    // ============================================================
-                    buildField(
-                      "Surname",
+                    // ── Surname ─────────────────────────────────────────
+                    _buildNameField(
+                      label: "Surname",
                       controller: surnameController,
+                      showError: false,
                     ),
                     const SizedBox(height: 20),
-                    buildField(
-                      "Email Address *",
-                      controller: emailController,
-                      hint: "example@email.com",
-                      validator: (value) {
-                        if (value == null || value.isEmpty) return null;
-                        if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                          return "Enter a valid email";
-                        }
-                        return null;
-                      },
-                    ),
+
+                    // ── Email ───────────────────────────────────────────
+                    _buildEmailField(),
                     const SizedBox(height: 20),
-                    buildField(
-                      "Enter Password",
-                      controller: passwordController,
-                      isPassword: true,
-                      obscure: obscure1,
-                      toggle: () => setState(() => obscure1 = !obscure1),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) return null;
-                        if (value.length < 8) return "8–50 characters required";
-                        if (value.length > 50) return "Maximum 50 characters";
-                        return null;
-                      },
-                    ),
+
+                    // ── Password ────────────────────────────────────────
+                    _buildPasswordField(),
+                    const SizedBox(height: 8),
+
+                    // Password requirements (always visible once user starts typing)
+                    _buildPasswordRequirements(),
                     const SizedBox(height: 20),
-                    buildField(
-                      "Re-enter Password",
-                      controller: confirmPasswordController,
-                      isPassword: true,
-                      obscure: obscure2,
-                      toggle: () => setState(() => obscure2 = !obscure2),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) return null;
-                        if (value != passwordController.text) {
-                          return "Passwords do not match";
-                        }
-                        return null;
-                      },
-                    ),
+
+                    // ── Confirm Password ────────────────────────────────
+                    _buildConfirmPasswordField(confirmNotEmpty),
                     const SizedBox(height: 30),
 
-                    // ============================================================
-                    // Register Button
-                    // Naka-disable (grey) kapag hindi pa valid ang form.
-                    // Nag-e-enable (pink) kapag valid na lahat ng fields.
-                    // onPressed ay naka-null kapag hindi valid — Flutter convention
-                    // para sa disabled button state.
-                    // ============================================================
+                    // ── Register button ─────────────────────────────────
                     SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton(
+                      child: _isCheckingEmail
+                          ? const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFFB56A7E),
+                        ),
+                      )
+                          : ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: isValid
+                          backgroundColor: _formComplete
                               ? const Color(0xFFB56A7E)
                               : Colors.grey.shade400,
                           foregroundColor: Colors.white,
                           elevation: 3,
-                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          padding:
+                          const EdgeInsets.symmetric(vertical: 18),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
                           ),
                         ),
-                        onPressed: isValid
-                            ? () {
-                              register();
-                              /*final state = context.read<AuthCubit>().state;
-                                if(state is Verified) {
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => PeriodSetupScreen()),
-                                  );
-                                }*/
-                          // TODO: [EDIT] I-call dito ang registration logic
-                          // Ilagay dito ang function na mag-sa-save ng user info
-                          // sa database, mag-ge-generate ng username, at
-                          // mag-na-navigate sa initialLength screen.
-                          // The code should be placed here
-                        }
-                            : null,
+                        onPressed: _formComplete
+                            ? register
+                            : () {
+                          // Still allow tap to show errors
+                          setState(() => _registerTapped = true);
+                        },
                         child: const Text(
                           "Register",
                           style: TextStyle(fontSize: 16),
@@ -516,20 +482,12 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                       ),
                     ),
                     const SizedBox(height: 20),
-
-                    // ============================================================
-                    // Sign In Redirect
-                    // Para sa mga user na mayroon nang account.
-                    // Nagre-redirect pabalik sa previous screen (Login screen).
-                    // ============================================================
                     Center(
                       child: TextButton(
                         onPressed: () => Navigator.pop(context),
                         child: const Text(
                           "Already have an account? Sign in",
-                          style: TextStyle(
-                            color: Color(0xFFB4697D),
-                          ),
+                          style: TextStyle(color: Color(0xFFB4697D)),
                         ),
                       ),
                     ),
@@ -540,89 +498,277 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             ),
           ),
         ),
-      )
+      ),
     );
   }
 
   // ============================================================
-  // buildField() — Reusable Text Field Widget
-  // Gumagawa ng labeled input field na may consistent styling.
-  // Suportado ang:
-  //   - Optional validator para sa format/length checking
-  //   - Password mode (obscureText + visibility toggle icon)
-  //   - Hint text para sa placeholder
-  // Ginagamit ito para maiwasan ang paulit-ulit na code sa bawat field.
+  // FIELD BUILDERS
   // ============================================================
-  Widget buildField(
-      String label, {
-        TextEditingController? controller,
-        bool isPassword = false,
-        bool obscure = false,
-        VoidCallback? toggle,
-        String? Function(String?)? validator,
-        String? hint,
-      }) {
+
+  /// Generic name field with auto-capitalize and optional error.
+  Widget _buildNameField({
+    required String label,
+    required TextEditingController controller,
+    required bool showError,
+    String? errorText,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Field label — nakalagay sa itaas ng input box, all caps with letter spacing
-        Text(
-          label.toUpperCase(),
-          style: const TextStyle(
-            fontSize: 10,
-            letterSpacing: 2,
-          ),
-        ),
+        Text(label.toUpperCase(),
+            style: const TextStyle(fontSize: 10, letterSpacing: 2)),
         const SizedBox(height: 8),
-
-        // ============================================================
-        // TextFormField — Actual Input Box
-        // Naka-style para mag-match sa overall pink/mauve theme ng app.
-        // Ang errorBorder at focusedErrorBorder ay idinagdag para
-        // malinaw na makita ng user kung may validation error.
-        // ============================================================
         TextFormField(
           controller: controller,
-          obscureText: obscure,
-          validator: validator,
-          decoration: InputDecoration(
-            hintText: hint,
-            suffixIcon: isPassword
-                ? IconButton(
-              icon: Icon(
-                obscure ? Icons.visibility_off : Icons.visibility,
-              ),
-              onPressed: toggle,
-            )
+          textCapitalization: TextCapitalization.words,
+          onChanged: (v) {
+            if (v.isNotEmpty && v[0] != v[0].toUpperCase()) {
+              final newVal = _capitalizeFirst(v);
+              controller.value = controller.value.copyWith(
+                text: newVal,
+                selection: TextSelection.collapsed(offset: newVal.length),
+              );
+            }
+            setState(() {});
+          },
+          decoration: _inputDecoration(
+            errorText: showError ? errorText : null,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Middle initial: max 1 char, auto-uppercase.
+  Widget _buildMiddleInitialField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("M.I.",
+            style: TextStyle(fontSize: 10, letterSpacing: 2)),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: middleInitialController,
+          textCapitalization: TextCapitalization.characters,
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(1),
+            FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z]')),
+            _UpperCaseTextFormatter(),
+          ],
+          onChanged: (_) => setState(() {}),
+          decoration: _inputDecoration(),
+        ),
+      ],
+    );
+  }
+
+  /// Email field with inline info hint and post-tap error.
+  Widget _buildEmailField() {
+    final text = emailController.text.trim();
+    final isEmpty = text.isEmpty;
+    final isInvalid = text.isNotEmpty && !_emailValid;
+
+    String? errorText;
+    if (_registerTapped && isEmpty) {
+      errorText = "Email is required.";
+    } else if (_registerTapped && isInvalid) {
+      errorText = "Enter a valid email address.";
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("EMAIL ADDRESS *",
+            style: TextStyle(fontSize: 10, letterSpacing: 2)),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: emailController,
+          keyboardType: TextInputType.emailAddress,
+          onChanged: (_) => setState(() {}),
+          decoration: _inputDecoration(
+            errorText: errorText,
+            helperText: errorText == null
+                ? "Use a valid email (e.g. user@email.com)"
                 : null,
-            filled: true,
-            fillColor: const Color(0xFFFFFBFC),
-            contentPadding:
-            const EdgeInsets.symmetric(vertical: 18, horizontal: 15),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
-              borderSide: const BorderSide(color: Color(0xFFE8B7C3)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
-              borderSide: const BorderSide(
-                color: Color(0xFFB56A7E),
-                width: 2,
-              ),
-            ),
-            // Added: error state borders para visible ang validation errors
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
-              borderSide: const BorderSide(color: Colors.redAccent),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
-              borderSide:
-              const BorderSide(color: Colors.redAccent, width: 2),
+            helperStyle:
+            const TextStyle(fontSize: 11, color: Colors.black45),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Password field.
+  Widget _buildPasswordField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("PASSWORD *",
+            style: TextStyle(fontSize: 10, letterSpacing: 2)),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: passwordController,
+          obscureText: obscure1,
+          onChanged: (_) => setState(() {}),
+          decoration: _inputDecoration(
+            suffixIcon: IconButton(
+              icon: Icon(obscure1 ? Icons.visibility_off : Icons.visibility),
+              onPressed: () => setState(() => obscure1 = !obscure1),
             ),
           ),
         ),
       ],
     );
+  }
+
+  /// Password requirements widget — always visible when password is non-empty.
+  Widget _buildPasswordRequirements() {
+    final show = passwordController.text.isNotEmpty;
+    if (!show) return const SizedBox(height: 0);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF0F3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE8B7C3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("Password must contain:",
+              style: TextStyle(fontSize: 11, color: Colors.black54)),
+          const SizedBox(height: 6),
+          _reqRow(_pwHasLength, "8–50 characters"),
+          _reqRow(_pwHasUpper, "At least one uppercase letter (A–Z)"),
+          _reqRow(_pwHasLower, "At least one lowercase letter (a–z)"),
+          _reqRow(_pwHasNumber, "At least one number (0–9)"),
+          _reqRow(_pwHasSymbol, "At least one symbol (!@#\$%^&*…)"),
+        ],
+      ),
+    );
+  }
+
+  Widget _reqRow(bool met, String label) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Icon(
+            met ? Icons.check_circle : Icons.cancel,
+            size: 14,
+            color: met ? const Color(0xFF4CAF50) : Colors.redAccent,
+          ),
+          const SizedBox(width: 6),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 11,
+                  color: met ? const Color(0xFF4CAF50) : Colors.black54)),
+        ],
+      ),
+    );
+  }
+
+  /// Confirm password field with ✓/✗ suffix icon.
+  Widget _buildConfirmPasswordField(bool confirmNotEmpty) {
+    Widget? suffixIcon;
+    if (confirmNotEmpty) {
+      suffixIcon = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _passwordsMatch ? Icons.check_circle : Icons.cancel,
+            color: _passwordsMatch
+                ? const Color(0xFF4CAF50)
+                : Colors.redAccent,
+            size: 20,
+          ),
+          IconButton(
+            icon: Icon(obscure2 ? Icons.visibility_off : Icons.visibility),
+            onPressed: () => setState(() => obscure2 = !obscure2),
+          ),
+        ],
+      );
+    } else {
+      suffixIcon = IconButton(
+        icon: Icon(obscure2 ? Icons.visibility_off : Icons.visibility),
+        onPressed: () => setState(() => obscure2 = !obscure2),
+      );
+    }
+
+    String? errorText;
+    if (_registerTapped && confirmPasswordController.text.isEmpty) {
+      errorText = "Please confirm your password.";
+    } else if (confirmNotEmpty && !_passwordsMatch) {
+      errorText = "Passwords do not match.";
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("CONFIRM PASSWORD *",
+            style: TextStyle(fontSize: 10, letterSpacing: 2)),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: confirmPasswordController,
+          obscureText: obscure2,
+          onChanged: (_) => setState(() {}),
+          decoration: _inputDecoration(
+            suffixIcon: suffixIcon,
+            errorText: errorText,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Shared InputDecoration ────────────────────────────────────────────────
+  InputDecoration _inputDecoration({
+    Widget? prefixIcon,
+    Widget? suffixIcon,
+    String? errorText,
+    String? helperText,
+    TextStyle? helperStyle,
+  }) {
+    return InputDecoration(
+      prefixIcon: prefixIcon,
+      suffixIcon: suffixIcon,
+      filled: true,
+      fillColor: const Color(0xFFFFFBFC),
+      contentPadding:
+      const EdgeInsets.symmetric(vertical: 18, horizontal: 15),
+      errorText: errorText,
+      helperText: helperText,
+      helperStyle: helperStyle,
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: const BorderSide(color: Color(0xFFE8B7C3)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: const BorderSide(color: Color(0xFFB56A7E), width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: const BorderSide(color: Colors.redAccent),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 2),
+      ),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(18)),
+    );
+  }
+}
+
+// ============================================================
+// UpperCase text formatter for middle initial
+// ============================================================
+class _UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    return newValue.copyWith(text: newValue.text.toUpperCase());
   }
 }

@@ -19,83 +19,156 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class EditProfileScreen extends StatelessWidget {
-  EditProfileScreen({super.key});
+class EditProfileScreen extends StatefulWidget {
+  const EditProfileScreen({super.key});
 
+  @override
+  State<EditProfileScreen> createState() => _EditProfileScreenState();
+}
+
+class _EditProfileScreenState extends State<EditProfileScreen> {
   final TextEditingController fnameController = TextEditingController();
   final TextEditingController miController = TextEditingController();
   final TextEditingController lnameController = TextEditingController();
+  bool _isLoading = true;
 
-  void updateName(String fname, String mi, String lname) async {
+  @override
+  void initState() {
+    super.initState();
+    _loadUserName();
+  }
+
+  /// Fetch the current user's name from Firestore and pre-fill the fields
+  Future<void> _loadUserName() async {
     final user = FirebaseAuth.instance.currentUser;
-
     if (user != null) {
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-        'first name': fname,
-        'middle initial': mi,
-        'last name': lname
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (doc.exists) {
+        final data = doc.data()!;
+        setState(() {
+          fnameController.text = data['first name'] ?? '';
+          miController.text   = data['middle initial'] ?? '';
+          lnameController.text = data['last name'] ?? '';
+        });
+      }
+    }
+    setState(() => _isLoading = false);
+  }
+
+  Future<void> _updateName() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update({
+        'first name': fnameController.text.trim(),
+        'middle initial': miController.text.trim(),
+        'last name': lnameController.text.trim(),
       });
     }
   }
 
-  // Reusable input decoration for text fields
   InputDecoration _inputDecoration(String hint) {
     return const InputDecoration().copyWith(
       hintText: hint,
       border: const UnderlineInputBorder(),
       focusedBorder: const UnderlineInputBorder(
-        borderSide: BorderSide(
-          color: Color(0xFFB56A7E),
-          width: 2,
+        borderSide: BorderSide(color: Color(0xFFB56A7E), width: 2),
+      ),
+    );
+  }
+
+  /// A field that clears on focus and shows a label beneath it
+  Widget _labeledField({
+    required TextEditingController controller,
+    required String hint,
+    required String label,
+    int flex = 1,
+    int maxLength = 100,
+  }) {
+    return Expanded(
+      flex: flex,
+      child: Focus(
+        onFocusChange: (hasFocus) {
+          if (hasFocus) controller.clear();
+        },
+        // Replace the Focus widget wrapping with this instead:
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            TextField(
+              controller: controller,
+              maxLength: maxLength,
+              textCapitalization: TextCapitalization.words,
+              textAlign: TextAlign.center,
+              decoration: _inputDecoration(hint).copyWith(counterText: ""),
+              onTap: () => controller.selection = TextSelection(
+                baseOffset: 0,
+                extentOffset: controller.text.length,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 11, color: Colors.black45),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );
   }
 
   @override
-  Widget build(BuildContext context) {
-    // Kinukuha screen width para ma-adjust layout dynamically
-    final screenWidth = MediaQuery.of(context).size.width;
+  void dispose() {
+    fnameController.dispose();
+    miController.dispose();
+    lnameController.dispose();
+    super.dispose();
+  }
 
-    // Determine if device is small (fara prevent overflow)
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
     final bool isSmallScreen = screenWidth < 380;
 
     return Scaffold(
-      resizeToAvoidBottomInset: true, // Prevent keyboard overflow
+      resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
-          // Background gradient
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  Color(0xFFF7F3F5),
-                  Color(0xFFF1E6EA),
-                ],
+                colors: [Color(0xFFF7F3F5), Color(0xFFF1E6EA)],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
             ),
           ),
-
           SafeArea(
-            child: LayoutBuilder(
+            child: _isLoading
+                ? const Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFFB56A7E),
+              ),
+            )
+                : LayoutBuilder(
               builder: (context, constraints) {
                 return SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-
-                  // Ensures content fills screen height but still scrolls
                   child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: constraints.maxHeight,
-                    ),
-
+                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
                     child: IntrinsicHeight(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const SizedBox(height: 15),
-                        // HEADER & ARROW_BACK BUTTORN YAS
+                          // Header
                           Row(
                             children: [
                               Transform.translate(
@@ -108,15 +181,10 @@ class EditProfileScreen extends StatelessWidget {
                                     child: InkWell(
                                       onTap: () => Navigator.pop(context),
                                       borderRadius: BorderRadius.circular(12),
-                                      splashColor:
-                                      const Color(0xFFB56A7E).withOpacity(0.2),
-                                      highlightColor:
-                                      const Color(0xFFB56A7E).withOpacity(0.3),
+                                      splashColor: const Color(0xFFB56A7E).withOpacity(0.2),
+                                      highlightColor: const Color(0xFFB56A7E).withOpacity(0.3),
                                       child: const Center(
-                                        child: Icon(
-                                          Icons.arrow_back,
-                                          color: Color(0xFF3A1F3D),
-                                        ),
+                                        child: Icon(Icons.arrow_back, color: Color(0xFF3A1F3D)),
                                       ),
                                     ),
                                   ),
@@ -136,18 +204,14 @@ class EditProfileScreen extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(height: 25),
-
-                          // Main card container
+                          // Card
                           Container(
                             width: double.infinity,
                             padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(22),
                               gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFFFFFBFC),
-                                  Color(0xFFF9F1F4),
-                                ],
+                                colors: [Color(0xFFFFFBFC), Color(0xFFF9F1F4)],
                               ),
                               boxShadow: [
                                 BoxShadow(
@@ -159,126 +223,58 @@ class EditProfileScreen extends StatelessWidget {
                             ),
                             child: Column(
                               children: [
-                                // Profile avatar
+                                // Avatar
                                 Container(
                                   width: 100,
                                   height: 100,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     gradient: const LinearGradient(
-                                      colors: [
-                                        Color(0xFFB56A7E),
-                                        Color(0xFF7B3F61),
-                                      ],
+                                      colors: [Color(0xFFB56A7E), Color(0xFF7B3F61)],
                                     ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: const Color(0xFFB56A7E)
-                                            .withOpacity(0.5),
+                                        color: const Color(0xFFB56A7E).withOpacity(0.5),
                                         blurRadius: 25,
                                         spreadRadius: 2,
                                       ),
                                     ],
                                   ),
-                                  child: const Icon(
-                                    Icons.person,
-                                    color: Colors.white,
-                                    size: 45,
-                                  ),
+                                  child: const Icon(Icons.person, color: Colors.white, size: 45),
                                 ),
-
                                 const SizedBox(height: 20),
-
-                                // Full name section
+                                // Name fields
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     const Text(
                                       "Full Name",
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.black54,
-                                      ),
+                                      style: TextStyle(fontSize: 13, color: Colors.black54),
                                     ),
                                     const SizedBox(height: 10),
-
-                                    // Responsive layout:
-                                    // Column for small screens, Row for larger screens
                                     isSmallScreen
                                         ? Column(
                                       children: [
-                                        TextField(
-                                          controller: fnameController,
-                                          decoration:
-                                          _inputDecoration(
-                                            "First Name",
-                                          ),
-                                        ),
+                                        _labeledField(controller: fnameController, hint: "First Name", label: "First Name"),
                                         const SizedBox(height: 12),
-                                        TextField(
-                                          maxLength: 1,
-                                          controller: miController,
-                                          decoration:
-                                          _inputDecoration(
-                                            "M.I.",
-                                          ).copyWith(
-                                            counterText: "",
-                                          ),
-                                        ),
+                                        _labeledField(controller: miController, hint: "M.I.", label: "M.I.", maxLength: 1),  // ✅
                                         const SizedBox(height: 12),
-                                        TextField(
-                                          controller: lnameController,
-                                          decoration:
-                                          _inputDecoration(
-                                            "Surname",
-                                          ),
-                                        ),
+                                        _labeledField(controller: lnameController, hint: "Surname", label: "Surname"),
                                       ],
                                     )
                                         : Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Expanded(
-                                          flex: 4,
-                                          child: TextField(
-                                            controller: fnameController,
-                                            decoration:
-                                            _inputDecoration(
-                                              "First Name",
-                                            ),
-                                          ),
-                                        ),
+                                        _labeledField(controller: fnameController, hint: "First Name", label: "First Name", flex: 4),
                                         const SizedBox(width: 10),
-                                        Expanded(
-                                          flex: 2,
-                                          child: TextField(
-                                            maxLength: 1,
-                                            controller: miController,
-                                            decoration:
-                                            _inputDecoration(
-                                              "M.I.",
-                                            ).copyWith(
-                                              counterText: "",
-                                            ),
-                                          ),
-                                        ),
+                                        _labeledField(controller: miController, hint: "M.I.", label: "M.I.", flex: 2, maxLength: 1),  // ✅
                                         const SizedBox(width: 10),
-                                        Expanded(
-                                          flex: 4,
-                                          child: TextField(
-                                            controller: lnameController,
-                                            decoration:
-                                            _inputDecoration(
-                                              "Surname",
-                                            ),
-                                          ),
-                                        ),
+                                        _labeledField(controller: lnameController, hint: "Surname", label: "Surname", flex: 4),
                                       ],
                                     ),
                                   ],
                                 ),
-
                                 const SizedBox(height: 20),
-
                                 // Update button
                                 Container(
                                   width: double.infinity,
@@ -286,8 +282,7 @@ class EditProfileScreen extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(25),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: const Color(0xFFB56A7E)
-                                            .withOpacity(0.4),
+                                        color: const Color(0xFFB56A7E).withOpacity(0.4),
                                         blurRadius: 15,
                                         offset: const Offset(0, 5),
                                       ),
@@ -295,34 +290,27 @@ class EditProfileScreen extends StatelessWidget {
                                   ),
                                   child: ElevatedButton(
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor:
-                                      const Color(0xFFB56A7E),
+                                      backgroundColor: const Color(0xFFB56A7E),
                                       foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 14,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                        BorderRadius.circular(25),
-                                      ),
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
                                       elevation: 0,
                                     ),
-                                    onPressed: () {
-                                      updateName(fnameController.text, miController.text, lnameController.text);
+                                    onPressed: () async {
+                                      await _updateName(); // ← await the save
+                                      if (!context.mounted) return;
                                       showDialog(
-                                        context: context, 
+                                        context: context,
                                         barrierDismissible: false,
-                                        builder: (BuildContext builderContext) {
+                                        builder: (builderContext) {
                                           Future.delayed(const Duration(seconds: 1), () {
                                             if (Navigator.of(builderContext).canPop()) {
-                                              Navigator.pop(context);
                                               Navigator.of(builderContext).pop();
+                                              Navigator.of(context).pop();
                                             }
                                           });
                                           return AlertDialog(
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(22),
-                                            ),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
                                             backgroundColor: const Color(0xFFFFFBFC),
                                             title: const Text(
                                               "Edit Profile",
@@ -331,33 +319,25 @@ class EditProfileScreen extends StatelessWidget {
                                                 fontSize: 22,
                                                 fontWeight: FontWeight.w600,
                                                 color: Color(0xFF3A1F3D),
-                                                ),
-                                              ),
-                                              content: Text(
-                                                "New Name Saved!",
-                                                style: TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.black54,
                                               ),
                                             ),
+                                            content: const Text(
+                                              "New Name Saved!",
+                                              style: TextStyle(fontSize: 14, color: Colors.black54),
+                                            ),
                                           );
-                                        }
+                                        },
                                       );
                                     },
                                     child: const Text(
                                       "Update My Profile",
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                                     ),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-
                           const SizedBox(height: 24),
                         ],
                       ),
@@ -369,38 +349,6 @@ class EditProfileScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
-  // Reusable labeled text field widget
-  Widget _buildTextField({
-    required String label,
-    required String hint,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 13,
-            color: Colors.black54,
-          ),
-        ),
-        const SizedBox(height: 5),
-        TextField(
-          decoration: InputDecoration(
-            hintText: hint,
-            border: const UnderlineInputBorder(),
-            focusedBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(
-                color: Color(0xFFB56A7E),
-                width: 2,
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

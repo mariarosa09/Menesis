@@ -1033,7 +1033,7 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
             _selectedMonth.year  == _today.year;
 
         Color bgColor = Colors.transparent;
-        Color textColor = isToday ? Colors.white : Colors.black87;
+        Color textColor = isToday ? const Color(0xFF884456) : Colors.black87;
         bool isPeriod = false;
         bool isFertile = false;
         bool isOvulation = false;
@@ -1056,11 +1056,7 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
           }
         }
 
-        if (isToday) {
-          bgColor = const Color(0xFF884456);
-        } else if (isSelected) {
-          bgColor = const Color(0xFFD6D6D6);
-        } else if (isOvulation) {
+        if (isOvulation) {
           bgColor = const Color(0xFFaedbc8);
         } else if (isPeriod) {
           bgColor = const Color(0xFFe2acb5);
@@ -1089,6 +1085,11 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
               decoration: BoxDecoration(
                 color: bgColor,
                 borderRadius: BorderRadius.circular(15),
+                border: isToday
+                    ? Border.all(color: const Color(0xFF884456), width: 1.8)
+                    : isSelected
+                    ? Border.all(color: Colors.black54, width: 1.5)
+                    : null,
               ),
               alignment: Alignment.center,
               child: isToday
@@ -1099,7 +1100,7 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
                       style: TextStyle(
                         fontFamily: "CormorantGaramond",
                         fontSize: 9,
-                        color: Colors.white,
+                        color: Color(0xFF884456),
                         fontWeight: FontWeight.w600,
                       )),
                   const SizedBox(height: 1),
@@ -1107,7 +1108,7 @@ class _CycleTrackerScreenState extends State<CalendarScreen> {
                       style: const TextStyle(
                         fontFamily: "DMSans",
                         fontSize: 13,
-                        color: Colors.white,
+                        color: Color(0xFF884456),
                         fontWeight: FontWeight.w500,
                       )),
                 ],

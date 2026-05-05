@@ -9,6 +9,8 @@ import 'editProfile.dart';
 import '/app_navigation/tab3/settings/dataAccount.dart';
 import '/app_navigation/tab3/settings/notifs.dart';
 import '/registration/main.dart';
+import '/app_navigation/tab3/profile/periodLength.dart';
+import '/app_navigation/tab3/profile/cycleLength.dart';
 
 /// ============================================================
 /// FILE: manageProfile.dart
@@ -352,11 +354,42 @@ class _ManageProfileScreenState extends State<ManageProfileScreen> {
                     title: "Menstrual Summary",
                     child: Column(
                       children: [
-                        _infoRow("Period Length", periodLength ?? "--"),
-                        
+                        _tappableInfoRow(
+                          label: "Period Length",
+                          value: periodLength != null ? "$periodLength days" : "--",
+                          onTap: () async {
+                            if (periodLength == null) return;
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => PeriodLengthSettingsScreen(
+                                  currentLength: int.tryParse(periodLength!) ?? 5,
+                                ),
+                              ),
+                            );
+                            // Refresh data after returning
+                            getPeriodLength();
+                          },
+                        ),
+
                         AppDivider(),
-                        
-                        _infoRow("Cycle Length", cycleLength ?? "--"),
+
+                        _tappableInfoRow(
+                          label: "Cycle Length",
+                          value: cycleLength != null ? "$cycleLength days" : "--",
+                          onTap: () async {
+                            if (cycleLength == null) return;
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => CycleLengthSettingsScreen(
+                                  currentLength: int.tryParse(cycleLength!) ?? 28,
+                                ),
+                              ),
+                            );
+                            getCycleLength();
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -645,6 +678,53 @@ class _infoRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _tappableInfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final VoidCallback? onTap;
+
+  const _tappableInfoRow({
+    required this.label,
+    required this.value,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label),
+            Row(
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Color(0xFFB56A7E),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Icon(
+                  Icons.arrow_forward_ios,
+                  size: 13,
+                  color: Color(0xFFB56A7E),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

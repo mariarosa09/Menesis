@@ -1,38 +1,9 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import '../../../otp.dart';
 
-// ============================================================
-// ENTRY POINT
-// Only used for standalone testing/preview ng screen.
-// Sa actual app, itong main() ay hindi na kailangan.
-// ============================================================
-void main() {
-  runApp(const MyApp());
-}
-
-// ============================================================
-// ROOT APP WIDGET (for standalone preview only)
-// Wraps the ChangeEmailScreen inside a MaterialApp para
-// marender ito nang maayos kapag pinapatakbo nang hiwalay.
-// ============================================================
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: ChangeEmailScreen(),
-    );
-  }
-}
-
-// ============================================================
-// CHANGE EMAIL SCREEN (StatefulWidget)
-// Ito ang pangunahing screen para sa pagpapalit ng email.
-// Ginagamit ang StatefulWidget dahil may form validation
-// at navigation logic na nangyayari dito.
-// ============================================================
 class ChangeEmailScreen extends StatefulWidget {
   const ChangeEmailScreen({super.key});
 
@@ -41,97 +12,193 @@ class ChangeEmailScreen extends StatefulWidget {
 }
 
 class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
-  // ----------------------------------------------------------
-  // FORM KEY & CONTROLLERS
-  // _formKey: ginagamit para i-validate ang form fields.
-  // newEmail: controller para sa "New Email" text field.
-  // ----------------------------------------------------------
-  final _formKey = GlobalKey<FormState>();
-  final TextEditingController newEmail = TextEditingController();
+  final _formKey      = GlobalKey<FormState>();
+  final _emailCtrl    = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  bool  _obscurePassword = true;
 
-  // ----------------------------------------------------------
-  // CURRENT EMAIL (Static/Display Only)
-  // Ito ang kasalukuyang email ng user. Hindi ito editable.
-  // TODO: (EDIT) - I-replace ang hardcoded na currentEmail ng
-  // actual na email na galing sa user session o database.
-  // Halimbawa, kunin sa SharedPreferences, Provider, o API call.
-  // The code should be placed here
-  // ----------------------------------------------------------
-  final String currentEmail = "user@email.com";
+  final FirebaseAuth      _auth      = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // ----------------------------------------------------------
-  // EMAIL VALIDATOR
-  // Sinisigurado nito na hindi blank ang input at valid
-  // ang format ng email bago payagan ang user na mag-proceed.
-  // ----------------------------------------------------------
-  String? validateEmail(String? value) {
-    if (value == null || value.isEmpty) {
-      return "Please enter a valid email";
-    }
+  User?  get _currentUser  => _auth.currentUser;
+  String get _currentEmail => _currentUser?.email ?? '';
 
-    // Checks kung may tamang email format (may @, may domain, etc.)
-    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-      return "Please enter a valid email";
-    }
+  Timer? _pollTimer;
 
-    // TODO: (EDIT) - Pwedeng dagdagan ng check kung ang bagong email
-    // ay hindi pareho sa currentEmail para maiwasan ang unnecessary update.
-    // The code should be placed here
-
+  String? _validateEmail(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Please enter a valid email.';
+    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value.trim())) return 'Please enter a valid email address.';
+    if (value.trim().toLowerCase() == _currentEmail.toLowerCase()) return 'New email must be different from your current email.';
     return null;
   }
 
-  // ----------------------------------------------------------
-  // HANDLE VERIFY BUTTON
-  // Pinipigilan muna ang keyboard, pagkatapos i-validate ang form.
-  // Kung valid, mag-navigate papunta sa OTP screen.
-  // TANDAAN: Ang handleVerify() method na ito ay hindi na ginagamit
-  // sa build() — direkta na ang logic sa button. Pwedeng alisin
-  // o gamitin para mas malinis ang code. Pinili naming panatilihin
-  // para hindi masira ang original na structure.
-  // ----------------------------------------------------------
-  void handleVerify() {
-    FocusScope.of(context).unfocus();
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) return 'Please enter your current password.';
+    if (value.length < 6) return 'Password must be at least 6 characters.';
+    return null;
+  }
 
-    if (_formKey.currentState!.validate()) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => OtpVerificationScreen(email: newEmail.text),
-        ),
-      );
+  void _snack(String msg, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isError ? const Color(0xFFB00020) : const Color(0xFF4CAF50),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  String _friendlyError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'email-already-in-use':   return 'This email is already used by another account.';
+      case 'invalid-email':          return 'The email address format is not valid.';
+      case 'wrong-password':
+      case 'invalid-credential':     return 'Incorrect password. Please try again.';
+      case 'requires-recent-login':  return 'Session expired. Please try again.';
+      case 'too-many-requests':      return 'Too many attempts. Please try again later.';
+      case 'network-request-failed': return 'No internet connection. Please check your network.';
+      case 'user-not-found':         return 'User not found. Please log in again.';
+      default:                       return 'Something went wrong. Please try again.';
     }
   }
 
-  // ----------------------------------------------------------
-  // DISPOSE
-  // Linisin ang controller kapag wala na itong ginagamit
-  // para maiwasan ang memory leak.
-  // ----------------------------------------------------------
+  void _popDialog() {
+    if (mounted) Navigator.of(context, rootNavigator: true).pop();
+  }
+
+  void _showLoadingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _LoadingDialog(),
+    );
+  }
+
+  void _showVerificationDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _VerificationDialog(
+        onResend: _resendVerification,
+        onClose: () {
+          _popDialog();
+          _resetFlow();
+        },
+      ),
+    );
+  }
+
+  void _showSuccessDialog(String email) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _SuccessDialog(newEmail: email),
+    );
+  }
+
+  Future<void> _submit() async {
+    FocusScope.of(context).unfocus();
+    if (!_formKey.currentState!.validate()) return;
+    if (_currentUser == null) {
+      _snack('No user is currently signed in.', isError: true);
+      return;
+    }
+
+    _showLoadingDialog();
+
+    try {
+      final credential = EmailAuthProvider.credential(
+        email: _currentEmail,
+        password: _passwordCtrl.text,
+      );
+      await _currentUser!.reauthenticateWithCredential(credential);
+      await _currentUser!.verifyBeforeUpdateEmail(_emailCtrl.text.trim());
+
+      _popDialog();
+      _showVerificationDialog();
+      _startNewEmailPoller();
+    } on FirebaseAuthException catch (e) {
+      _popDialog();
+      _snack(_friendlyError(e), isError: true);
+    } catch (_) {
+      _popDialog();
+      _snack('Something went wrong. Please try again.', isError: true);
+    }
+  }
+
+  void _startNewEmailPoller() {
+    _pollTimer?.cancel();
+    final intended = _emailCtrl.text.trim().toLowerCase();
+    final confirmedEmail = _emailCtrl.text.trim();
+
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (timer) async {
+      try {
+        await _auth.currentUser?.reload();
+        final updated = _auth.currentUser?.email?.toLowerCase();
+
+        if (updated == intended) {
+          timer.cancel();
+          await _updateFirestoreEmail(_auth.currentUser!.uid, confirmedEmail);
+          if (mounted) {
+            _popDialog();
+            _showSuccessDialog(confirmedEmail);
+            await Future.delayed(const Duration(seconds: 2));
+            if (mounted) {
+              _popDialog();
+              Navigator.pop(context);
+            }
+          }
+        }
+      } catch (_) {}
+    });
+  }
+
+  Future<void> _updateFirestoreEmail(String uid, String newEmail) async {
+    try {
+      await _firestore.collection('users').doc(uid).update({'email': newEmail});
+    } catch (e) {
+      debugPrint('Firestore email update failed: $e');
+    }
+  }
+
+  Future<void> _resendVerification() async {
+    try {
+      await _currentUser!.verifyBeforeUpdateEmail(_emailCtrl.text.trim());
+      _snack('Verification link resent.');
+    } on FirebaseAuthException catch (e) {
+      _snack(_friendlyError(e), isError: true);
+    } catch (_) {
+      _snack('Failed to resend. Please try again.', isError: true);
+    }
+  }
+
+  void _resetFlow() {
+    _pollTimer?.cancel();
+    if (mounted) {
+      setState(() {
+        _emailCtrl.clear();
+        _passwordCtrl.clear();
+      });
+    }
+  }
+
   @override
   void dispose() {
-    newEmail.dispose();
+    _pollTimer?.cancel();
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
     super.dispose();
   }
 
-  // ==========================================================
-  // BUILD METHOD — Pangunahing UI ng screen
-  // ==========================================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // --------------------------------------------------------
-      // BACKGROUND GRADIENT CONTAINER
-      // Nagbibigay ng magandang gradient background mula
-      // sa itaas hanggang sa ibaba ng screen.
-      // --------------------------------------------------------
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              Color(0xFFF7F3F5),
-              Color(0xFFF1E6EA),
-            ],
+            colors: [Color(0xFFF7F3F5), Color(0xFFF1E6EA)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -145,174 +212,48 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 15),
-
-                  // --------------------------------------------
-                  // HEADER ROW — Back Button + Screen Title
-                  // Naglalagay ng back arrow button at "Change Email"
-                  // na pamagat sa tuktok ng screen.
-                  // --------------------------------------------
-                  Row(
-                    children: [
-                      Transform.translate(
-                        offset: const Offset(-15, 0),
-                        child: SizedBox(
-                          width: 45,
-                          height: 45,
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () => Navigator.pop(context),
-                              borderRadius: BorderRadius.circular(12),
-                              splashColor:
-                              const Color(0xFFB56A7E).withOpacity(0.2),
-                              highlightColor:
-                              const Color(0xFFB56A7E).withOpacity(0.3),
-                              child: const Center(
-                                child: Icon(
-                                  Icons.arrow_back,
-                                  color: Color(0xFF3A1F3D),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Transform.translate(
-                        offset: const Offset(-15, 0),
-                        child: const Text(
-                          "Change Email",
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF3A1F3D),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
+                  _buildHeader(),
                   const SizedBox(height: 20),
-
-                  // --------------------------------------------
-                  // CURRENT EMAIL DISPLAY (Read-Only)
-                  // Ipinapakita ang kasalukuyang email ng user.
-                  // Hindi ito editable — display only.
-                  //
-                  // TODO (User Input #1): (EDIT) - Palitan ang
-                  // hardcoded na `currentEmail` ng actual na data
-                  // mula sa user session, SharedPreferences, o API.
-                  // The code should be placed here
-                  // --------------------------------------------
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "EMAIL",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF7A4E5D),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF5F5F5),
-                          borderRadius: BorderRadius.circular(15),
-                          border: Border.all(color: const Color(0xFFE0C8D0)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.email_outlined,
-                                size: 18, color: Colors.grey),
-                            const SizedBox(width: 10),
-
-                            // Ipinapakita ang currentEmail bilang plain text.
-                            // Walang TextEditingController — di talaga ito editable.
-                            Expanded(
-                              child: Text(
-                                currentEmail,
-                                style: const TextStyle(color: Colors.grey),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-
+                  _buildCurrentEmailDisplay(),
                   const SizedBox(height: 20),
-
-                  // --------------------------------------------
-                  // NEW EMAIL INPUT FIELD
-                  // Dito nagta-type ang user ng bagong email.
-                  // May validator na nagsisiguro ng tamang format.
-                  //
-                  // TODO (User Input #4): (EDIT) - Ang validator
-                  // ay nagre-return na ng "Please enter a valid email"
-                  // kapag mali ang format. Awtomatiko itong lumalabas
-                  // sa ilalim ng field. Walang karagdagang widget
-                  // na kailangan — ginagawa na ito ng TextFormField.
-                  // The code should be placed here
-                  // --------------------------------------------
-                  _inputField(
-                    controller: newEmail,
-                    label: "NEW EMAIL",
-                    hint: "new@email.com",
-                    validator: validateEmail,
+                  _styledInput(
+                    controller: _emailCtrl,
+                    label: 'NEW EMAIL',
+                    hint: 'new@email.com',
+                    keyboardType: TextInputType.emailAddress,
+                    validator: _validateEmail,
                   ),
-
-                  const SizedBox(height: 30),
-
-                  // --------------------------------------------
-                  // VERIFY NEW EMAIL BUTTON
-                  // Kapag pinindot ito:
-                  //   1. Tinatanggal ang keyboard
-                  //   2. Vina-validate ang form
-                  //   3. Kung valid — pupunta sa OTP screen
-                  //   4. Kung invalid — hindi pupunta, lalabas ang
-                  //      warning message sa ilalim ng input field
-                  //
-                  // TODO (User Input #2 & #3): (EDIT) - Para sa OTP screen ito,
-                  // ipadala ang verification code sa bagong email.
-                  // Kapag tama ang code: mag-update ng email sa backend
-                  // at magpakita ng success SnackBar o dialog.
-                  // Kapag mali ang code: ipakita ang "Invalid code! Please Try Again".
-                  // The code should be placed here
-                  // --------------------------------------------
+                  const SizedBox(height: 20),
+                  _styledInput(
+                    controller: _passwordCtrl,
+                    label: 'CURRENT PASSWORD',
+                    hint: 'Enter your current password',
+                    isPassword: true,
+                    isVisible: !_obscurePassword,
+                    toggleVisibility: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
+                    validator: _validatePassword,
+                  ),
+                  const SizedBox(height: 35),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        // Itanggal ang keyboard bago i-validate
-                        FocusScope.of(context).unfocus();
-
-                        // Mag-navigate sa OTP screen kung valid ang email
-                        if (_formKey.currentState!.validate()) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  OtpVerificationScreen(email: newEmail.text),
-                            ),
-                          );
-                        }
-                      },
+                      onPressed: _submit,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFB56A7E),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(25),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      child: const Text(
-                        "Verify New Email",
-                        style: TextStyle(color: Colors.white),
-                      ),
+                      child: const Text('Verify New Email'),
                     ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildInfoNote(
+                    'Enter your current password to confirm your identity. '
+                        "We'll then send a verification link to your new email address.",
                   ),
                 ],
               ),
@@ -323,51 +264,350 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
     );
   }
 
-  // ==========================================================
-  // REUSABLE INPUT FIELD WIDGET
-  // Helper method na gumagawa ng styled TextFormField
-  // para hindi paulit-ulit ang code. May label at validator support.
-  // ==========================================================
-  Widget _inputField({
-    required TextEditingController controller,
-    required String hint,
-    String? label,
-    String? Function(String?)? validator,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildHeader() {
+    return Row(
       children: [
-        // Ipinapakita ang label kung may naibigay
-        if (label != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 5),
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF7A4E5D),
-                fontWeight: FontWeight.w500,
+        Transform.translate(
+          offset: const Offset(-15, 0),
+          child: SizedBox(
+            width: 45,
+            height: 45,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => Navigator.pop(context),
+                borderRadius: BorderRadius.circular(12),
+                splashColor: const Color(0xFFB56A7E).withOpacity(0.2),
+                highlightColor: const Color(0xFFB56A7E).withOpacity(0.3),
+                child: const Center(
+                  child: Icon(Icons.arrow_back, color: Color(0xFF3A1F3D)),
+                ),
               ),
             ),
           ),
-
-        // Ang aktwal na text input field na may validation support
-        TextFormField(
-          controller: controller,
-          validator: validator,
-          keyboardType: TextInputType.emailAddress,
-          decoration: InputDecoration(
-            hintText: hint,
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(15),
+        ),
+        Transform.translate(
+          offset: const Offset(-15, 0),
+          child: const Text(
+            'Change Email',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF3A1F3D),
             ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildCurrentEmailDisplay() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'CURRENT EMAIL',
+          style: TextStyle(fontSize: 12, letterSpacing: 1.5, color: Colors.black54),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8F3F5),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE6B7C2)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              const Icon(Icons.email_outlined, size: 18, color: Colors.grey),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(_currentEmail, style: const TextStyle(color: Colors.grey)),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoNote(String text) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFB56A7E).withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFB56A7E).withOpacity(0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, size: 16, color: Color(0xFFB56A7E)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 12, color: Color(0xFF7A4E5D)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _styledInput({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    TextInputType keyboardType = TextInputType.text,
+    String? Function(String?)? validator,
+    bool isPassword = false,
+    bool isVisible = false,
+    VoidCallback? toggleVisibility,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, letterSpacing: 1.5, color: Colors.black54),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8F3F5),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE6B7C2)),
+          ),
+          child: TextFormField(
+            controller: controller,
+            validator: validator,
+            keyboardType: keyboardType,
+            obscureText: isPassword && !isVisible,
+            decoration: InputDecoration(
+              hintText: hint,
+              contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              border: InputBorder.none,
+              suffixIcon: isPassword
+                  ? IconButton(
+                icon: Icon(
+                  isVisible ? Icons.visibility : Icons.visibility_off,
+                  color: Colors.grey,
+                ),
+                onPressed: toggleVisibility,
+              )
+                  : null,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================
+// LOADING DIALOG — unchanged
+// ============================================================
+class _LoadingDialog extends StatelessWidget {
+  const _LoadingDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 60, vertical: 40),
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 32, vertical: 36),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: Color(0xFFB56A7E)),
+            SizedBox(height: 20),
+            Text(
+              'Verifying your identity\nand sending email link…',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFF3A1F3D), fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// VERIFICATION DIALOG — unchanged
+// ============================================================
+class _VerificationDialog extends StatelessWidget {
+  const _VerificationDialog({
+    required this.onResend,
+    required this.onClose,
+  });
+
+  final VoidCallback onResend;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: GestureDetector(
+                onTap: onClose,
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close, size: 16, color: Colors.grey),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: const Color(0xFFB56A7E).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.mark_email_read_outlined,
+                  size: 40, color: Color(0xFFB56A7E)),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'Check your inbox',
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF3A1F3D)),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'A verification link has been sent to your new email address. Click the link to complete the change.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                SizedBox(
+                  width: 13,
+                  height: 13,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Color(0xFFB56A7E)),
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'Waiting for verification…',
+                  style: TextStyle(fontSize: 12, color: Color(0xFFB56A7E)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFB56A7E).withOpacity(0.07),
+                borderRadius: BorderRadius.circular(10),
+                border:
+                Border.all(color: const Color(0xFFB56A7E).withOpacity(0.18)),
+              ),
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, size: 14, color: Color(0xFFB56A7E)),
+                  SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      'This dialog will close automatically once your new email is confirmed.',
+                      style:
+                      TextStyle(fontSize: 11, color: Color(0xFF7A4E5D)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onResend,
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Resend Link'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFB56A7E),
+                  side: const BorderSide(color: Color(0xFFB56A7E)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  textStyle: const TextStyle(fontSize: 13),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// SUCCESS DIALOG — unchanged
+// ============================================================
+class _SuccessDialog extends StatelessWidget {
+  const _SuccessDialog({required this.newEmail});
+
+  final String newEmail;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 48, vertical: 40),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(28, 36, 28, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: const Color(0xFF4CAF50).withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_circle_outline,
+                  size: 52, color: Color(0xFF4CAF50)),
+            ),
+            const SizedBox(height: 22),
+            const Text(
+              'Email Updated!',
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF3A1F3D)),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your email has been changed to\n$newEmail',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: Colors.grey, fontSize: 13, height: 1.4),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -6,6 +6,9 @@ import 'package:menesis_app/auth/entities/app_user.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:menesis_app/auth/repo/auth_repo.dart';
 
+// ============================================================
+// States
+// ============================================================
 abstract class AuthState {}
 
 class NeedVerification extends AuthState {
@@ -31,13 +34,14 @@ class Authenticated extends AuthState {
 
 class Unauthenticated extends AuthState {}
 
-class Error extends AuthState {}
-
 class AuthError extends AuthState {
   final String message;
   AuthError(this.message);
 }
 
+// ============================================================
+// AuthCubit
+// ============================================================
 class AuthCubit extends Cubit<AuthState> {
   final AutoRepo authRepo;
   AppUser? _currentUser;
@@ -46,115 +50,147 @@ class AuthCubit extends Cubit<AuthState> {
 
   AppUser? get currentUser => _currentUser;
 
+  // ----------------------------------------------------------
+  // checkAuth
+  // ----------------------------------------------------------
   void checkAuth() async {
     emit(AuthLoading());
-
-    final AppUser? user = await authRepo.getCurrentUser();
-
+    final user = await authRepo.getCurrentUser();
     if (user != null) {
       _currentUser = user;
       emit(Authenticated(user));
+    } else {
+      emit(Unauthenticated());
     }
   }
 
-
+  // ----------------------------------------------------------
+  // login
+  // ----------------------------------------------------------
   Future<void> login(String email, String password) async {
     try {
       emit(AuthLoading());
-      final user = await authRepo.loginWithEmailPassword(email, password);
-      if (user!=null) {
+      final user =
+      await authRepo.loginWithEmailPassword(email, password);
+      if (user != null) {
         _currentUser = user;
-        final userCheck = FirebaseAuth.instance.currentUser;
-        if(!userCheck!.emailVerified) {
-          await userCheck.sendEmailVerification();
+        final firebaseUser = FirebaseAuth.instance.currentUser;
+        if (firebaseUser != null && !firebaseUser.emailVerified) {
+          await firebaseUser.sendEmailVerification();
           emit(NeedVerificationLogin(user));
           _startVerificationCheck();
-        }
-        else {
+        } else {
           emit(Authenticated(user));
         }
-      }
-      else {
+      } else {
         emit(Unauthenticated());
       }
-    }
-    catch (e) {
+    } catch (e) {
       emit(AuthError(e.toString()));
       emit(Unauthenticated());
     }
   }
 
-  Future<void> register(String fname, String mi, String lname, String email, String password) async {
+  // ----------------------------------------------------------
+  // register
+  // ----------------------------------------------------------
+  Future<void> register(String fname, String mi, String lname,
+      String email, String password) async {
     try {
       emit(AuthLoading());
-      final user = await authRepo.registerWithEmailPassword(fname, mi, lname, email, password);
-      if (user!=null) {
+      final user = await authRepo.registerWithEmailPassword(
+          fname, mi, lname, email, password);
+      if (user != null) {
         _currentUser = user;
         emit(NeedVerification(user));
-
         _startVerificationCheck();
-      }
-      else {
+      } else {
         emit(Unauthenticated());
       }
-    } 
-    on FirebaseAuthException {
-      emit(Error());
-    }
-    catch (e) {
+    } on FirebaseAuthException catch (e) {
+      emit(AuthError(e.message ?? 'Registration failed. Please try again.'));
+    } catch (e) {
       emit(AuthError(e.toString()));
-      emit(Unauthenticated());
     }
   }
 
+  // ----------------------------------------------------------
+  // _startVerificationCheck
+  // ----------------------------------------------------------
   void _startVerificationCheck() {
     Timer.periodic(const Duration(seconds: 3), (timer) async {
       await FirebaseAuth.instance.currentUser?.reload();
       final user = FirebaseAuth.instance.currentUser;
-
       if (user?.emailVerified ?? false) {
         timer.cancel();
         emit(Verified());
-        emit(Authenticated(AppUser(uid: user!.uid, email: user.email!)));
+        emit(VerifiedNeedsSetup(AppUser(uid: user!.uid, email: user.email!)));
       }
     });
   }
 
+  // ----------------------------------------------------------
+  // logout
+  // ----------------------------------------------------------
   Future<void> logout() async {
     emit(AuthLoading());
     await authRepo.logout();
     emit(Unauthenticated());
   }
 
+  // ----------------------------------------------------------
+  // forgotPassword
+  // ----------------------------------------------------------
   Future<String> forgotPassword(String email) async {
     try {
-      final message = await authRepo.sendPasswordResetEmail(email);
-      return message;
-    }
-    catch (e) {
+      return await authRepo.sendPasswordResetEmail(email);
+    } catch (e) {
       return e.toString();
     }
   }
 
-  Future<void> deleteAccount() async {
+  // ----------------------------------------------------------
+  // getDaysUntilPermanentDeletion
+  // Delegates to the repo. Returns:
+  //   null  → account is active (not soft-deleted)
+  //   n > 0 → soft-deleted, n days left in recovery window
+  //   0     → window expired, should permanently delete
+  // ----------------------------------------------------------
+  Future<int?> getDaysUntilPermanentDeletion() =>
+      authRepo.getDaysUntilPermanentDeletion();
+
+  // ----------------------------------------------------------
+  // recoverAccount
+  // Clears the soft-delete flag so the account is fully restored.
+  // ----------------------------------------------------------
+  Future<void> recoverAccount() async {
+    try {
+      await authRepo.recoverAccount();
+      // _currentUser is still set from the login call; no re-emit needed.
+    } catch (e) {
+      emit(AuthError(e.toString()));
+      rethrow; // Let the UI handle the SnackBar.
+    }
+  }
+
+  // ----------------------------------------------------------
+  // permanentlyDeleteAccount
+  // Erases all Firestore data + the Firebase Auth account.
+  // ----------------------------------------------------------
+  Future<void> permanentlyDeleteAccount() async {
     try {
       emit(AuthLoading());
-      await authRepo.deleteAccount();
+      await authRepo.permanentlyDeleteAccount();
+      _currentUser = null;
       emit(Unauthenticated());
-    }
-    catch (e) {
+    } catch (e) {
       emit(AuthError(e.toString()));
-      emit(Unauthenticated());
+      rethrow; // Let the UI handle requires-recent-login etc.
     }
   }
+}
 
-  /*Future<String> sendVerification() async {
-    try {
-      final message = await authRepo.sendEmailVerification();
-      return message;
-    }
-    catch (e) {
-      return e.toString();
-    }
-  }*/
+class VerifiedNeedsSetup extends AuthState {
+  final AppUser user;
+  VerifiedNeedsSetup(this.user);
 }

@@ -3,24 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:menesis_app/app_navigation/tab2/homepage.dart';
 
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: PeriodSetupScreen(),
-    );
-  }
-}
-
-// TODO: i-save ung data rito sa database
-
 class PeriodSetupScreen extends StatefulWidget {
   const PeriodSetupScreen({super.key});
 
@@ -33,51 +15,88 @@ class _PeriodSetupScreenState extends State<PeriodSetupScreen> {
   int cycleLength = 28;
   String cycleType = "Regular";
   bool smartPrediction = true;
+  bool isSaving = false;
 
   void incrementPeriod() {
-    if (periodLength < 50) {
-      setState(() => periodLength++);
-    }
+    if (periodLength < 50) setState(() => periodLength++);
   }
 
   void decrementPeriod() {
-    if (periodLength > 1) {
-      setState(() => periodLength--);
-    }
+    if (periodLength > 1) setState(() => periodLength--);
   }
 
   void incrementCycle() {
-    if (cycleLength < 50) {
-      setState(() => cycleLength++);
-    }
+    if (cycleLength < 50) setState(() => cycleLength++);
   }
 
   void decrementCycle() {
-    if (cycleLength > 1) {
-      setState(() => cycleLength--);
+    if (cycleLength > 1) setState(() => cycleLength--);
+  }
+
+  // FIX: Sole writer of cycle data — initialSetup() in createAccount.dart
+  // has been removed. This is now the only place that creates cycle data,
+  // preventing silent hardcoded defaults from being stored before the user
+  // has a chance to set their actual preferences.
+  // FIX: SetOptions(merge: true) used so future fields are never silently deleted.
+  // FIX: setupComplete flag added so the app can detect incomplete setups
+  // (e.g. user closed app between registration and this screen).
+  Future<void> addUserPeriodDetails() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      await FirebaseFirestore.instance
+          .collection('cycle')
+          .doc(user.uid)
+          .set({
+        'cycle type': cycleType,
+        'cycle length': cycleLength,
+        'period length': periodLength,
+        'status': true,
+        'emptyRecord': true,
+        'setupComplete': true,
+      }, SetOptions(merge: true));
+
+      await FirebaseFirestore.instance
+          .collection('settings')
+          .doc(user.uid)
+          .set({
+        'smart prediction': smartPrediction,
+        'period notification': true,
+        'ovulation notification': false,
+        'log reminder': true,
+        'summary': false,
+        'setupComplete': true,
+      }, SetOptions(merge: true));
     }
   }
 
-  Future addUserPeriodDetails() async {
-    final user = FirebaseAuth.instance.currentUser;
-    
-    if (user != null) {
-        await FirebaseFirestore.instance.collection('cycle').doc(user.uid).set({
-          'cycle type': cycleType,
-          'cycle length': cycleLength,
-          'period length': periodLength,
-          'status': true,
-          'emptyRecord': true
-        });
-        await FirebaseFirestore.instance.collection('settings').doc(user.uid).set({
-          'smart prediction': smartPrediction,
-          'period notification': true,
-          'ovulation notification': false,
-          'log reminder': true,
-          'summary': false
-        });
-      }
-    } 
+  // FIX: Save is awaited before navigating, with error handling and
+  // isSaving state to block double-taps and show a loading indicator.
+  Future<void> _onSaveAndContinue() async {
+    setState(() => isSaving = true);
+
+    try {
+      await addUserPeriodDetails();
+
+      if (!mounted) return;
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const HomePage()),
+            (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Failed to save settings. Please try again."),
+          backgroundColor: Color(0xFFB56A7E),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => isSaving = false);
+    }
+  }
 
   Widget buildStepperCard({
     required String title,
@@ -148,15 +167,10 @@ class _PeriodSetupScreenState extends State<PeriodSetupScreen> {
               children: [
                 IconButton(
                   visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints(
-                    minWidth: 36,
-                    minHeight: 36,
-                  ),
+                  constraints:
+                  const BoxConstraints(minWidth: 36, minHeight: 36),
                   onPressed: value > 1 ? onMinus : null,
-                  icon: const Icon(
-                    Icons.remove,
-                    color: Color(0xFF7A4D5E),
-                  ),
+                  icon: const Icon(Icons.remove, color: Color(0xFF7A4D5E)),
                 ),
                 SizedBox(
                   width: 34,
@@ -174,15 +188,10 @@ class _PeriodSetupScreenState extends State<PeriodSetupScreen> {
                 ),
                 IconButton(
                   visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints(
-                    minWidth: 36,
-                    minHeight: 36,
-                  ),
+                  constraints:
+                  const BoxConstraints(minWidth: 36, minHeight: 36),
                   onPressed: value < 50 ? onAdd : null,
-                  icon: const Icon(
-                    Icons.add,
-                    color: Color(0xFF7A4D5E),
-                  ),
+                  icon: const Icon(Icons.add, color: Color(0xFF7A4D5E)),
                 ),
               ],
             ),
@@ -245,9 +254,7 @@ class _PeriodSetupScreenState extends State<PeriodSetupScreen> {
           ),
           const SizedBox(width: 12),
           PopupMenuButton<String>(
-            onSelected: (value) {
-              setState(() => cycleType = value);
-            },
+            onSelected: (value) => setState(() => cycleType = value),
             color: const Color(0xFFF4EFF1),
             elevation: 4,
             shape: RoundedRectangleBorder(
@@ -298,7 +305,8 @@ class _PeriodSetupScreenState extends State<PeriodSetupScreen> {
               ),
             ],
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: const Color(0xFFE9E1E4),
                 borderRadius: BorderRadius.circular(16),
@@ -374,7 +382,7 @@ class _PeriodSetupScreenState extends State<PeriodSetupScreen> {
                       const SizedBox(height: 4),
                       Text(
                         smartPrediction
-                            ? "Auto-calculation" // di ako kuntento sa description nento
+                            ? "Learns from your cycle history"
                             : "Use manual tracking only",
                         style: const TextStyle(
                           fontSize: 13,
@@ -391,9 +399,7 @@ class _PeriodSetupScreenState extends State<PeriodSetupScreen> {
           Switch(
             value: smartPrediction,
             activeColor: const Color(0xFF8C4F6B),
-            onChanged: (value) {
-              setState(() => smartPrediction = value);
-            },
+            onChanged: (value) => setState(() => smartPrediction = value),
           ),
         ],
       ),
@@ -403,15 +409,10 @@ class _PeriodSetupScreenState extends State<PeriodSetupScreen> {
   Widget buildHeader(double height) {
     return Container(
       width: double.infinity,
-      constraints: BoxConstraints(
-        minHeight: height,
-      ),
+      constraints: BoxConstraints(minHeight: height),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            Color(0xFF3E1F30),
-            Color(0xFF8C4F6B),
-          ],
+          colors: [Color(0xFF3E1F30), Color(0xFF8C4F6B)],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),
@@ -426,9 +427,8 @@ class _PeriodSetupScreenState extends State<PeriodSetupScreen> {
               height: 260,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.1),
-                ),
+                border:
+                Border.all(color: Colors.white.withOpacity(0.1)),
               ),
             ),
           ),
@@ -506,10 +506,8 @@ class _PeriodSetupScreenState extends State<PeriodSetupScreen> {
                       Flexible(
                         child: Text(
                           "Personalized tracking",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                          ),
+                          style:
+                          TextStyle(color: Colors.white, fontSize: 12),
                         ),
                       ),
                     ],
@@ -541,10 +539,7 @@ class _PeriodSetupScreenState extends State<PeriodSetupScreen> {
           const SizedBox(height: 6),
           const Text(
             "Help us personalize your cycle tracking experience",
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.black54,
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.black54),
           ),
           const SizedBox(height: 25),
           buildCycleTypeCard(),
@@ -568,7 +563,9 @@ class _PeriodSetupScreenState extends State<PeriodSetupScreen> {
             width: double.infinity,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(28),
-              color: const Color(0xFFB56A7E),
+              color: isSaving
+                  ? const Color(0xFFB56A7E).withOpacity(0.6)
+                  : const Color(0xFFB56A7E),
             ),
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -579,19 +576,17 @@ class _PeriodSetupScreenState extends State<PeriodSetupScreen> {
                   borderRadius: BorderRadius.circular(28),
                 ),
               ),
-              onPressed: () {
-                // TODO: Save periodLength, cycleLength, cycleType, smartPrediction
-                addUserPeriodDetails();
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                    const HomePage(),
-                  ),
-                  (route) => false,
-                );
-              },
-              child: const Text(
+              onPressed: isSaving ? null : _onSaveAndContinue,
+              child: isSaving
+                  ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
+                  : const Text(
                 "Save & Continue",
                 style: TextStyle(fontSize: 16, color: Colors.white),
               ),
@@ -615,9 +610,8 @@ class _PeriodSetupScreenState extends State<PeriodSetupScreen> {
 
             return SingleChildScrollView(
               child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight,
-                ),
+                constraints:
+                BoxConstraints(minHeight: constraints.maxHeight),
                 child: Column(
                   children: [
                     buildHeader(headerHeight),

@@ -13,23 +13,33 @@ void main() {
 
 // ─────────────────────────────────────────────
 // PHASE DEFINITIONS
-// Clockwise order: Period → Follicular → Fertile → Ovulation
-// Segments are proportional to days (total = 28).
+// Ring order (clockwise): Menstruation → Fertile → Ovulation → Luteal
+// Total = 28 days.
+//
+// Follicular is rendered as a SEPARATE inner overlay arc
+// that spans from day 1 through Fertile end (days 1–10).
+// Follicular ends the day BEFORE ovulation (aligns with fertileEnd).
 // ─────────────────────────────────────────────
 class _CyclePhase {
   final String name;
   final int days;
   final Color color;
-  final Color shimmer;
-  const _CyclePhase(this.name, this.days, this.color, this.shimmer);
+  const _CyclePhase(this.name, this.days, this.color);
 }
 
+// Primary outer ring segments (must sum to 28)
 const List<_CyclePhase> _cyclePhases = [
-  _CyclePhase('Period',     5,  Color(0xFFE57373), Color(0xFFFF8A80)),
-  _CyclePhase('Follicular', 9,  Color(0xFFFFFFFF), Color(0xFFE8E8E8)),
-  _CyclePhase('Fertile',    5,  Color(0xFFFFD54F), Color(0xFFFFF176)),
-  _CyclePhase('Ovulation',  9,  Color(0xFF6ED6A5), Color(0xFFA5F3D0)),
+  _CyclePhase('Menstruation', 5,  Color(0xFFE57373)), // days 1–5
+  _CyclePhase('Fertile',      5,  Color(0xFFFFD54F)), // days 6–10
+  _CyclePhase('Ovulation',    1,  Color(0xFF6ED6A5)), // day 11
+  _CyclePhase('Luteal',       17, Color(0xFF9C7FBF)), // days 12–28
 ];
+
+// Follicular overlay arc: day 1 → end of Fertile phase (10 days total)
+// Menstruation(5) + Fertile(5) = 10  ← ends the day BEFORE ovulation,
+// which aligns exactly with fertileEnd in Firestore.
+const int _follicularDays = 10;
+const Color _follicularColor = Color(0xFFEAEAEA); // soft grey-white
 
 const int _totalDays = 28;
 
@@ -78,6 +88,8 @@ class _HomePageState extends State<HomePage>
   DateTime _now = DateTime.now().toLocal();
 
   // ── Period log state ─────────────────────────
+  // true  = period has NOT started yet (or just ended) → cat says "Period Starts?"
+  // false = period is currently active              → cat says "Period Ends?"
   bool start = true;
 
   // ── Cycle data ───────────────────────────────
@@ -85,6 +97,7 @@ class _HomePageState extends State<HomePage>
   int? daysInCurrentCycle;
   String? name;
   String? cyclePhase;
+  String? cyclePhase2; // secondary concurrent phase (e.g. Follicular)
 
   // ── Legacy display fields (kept for legend) ──
   Color colorCycle = Colors.white;
@@ -186,22 +199,23 @@ class _HomePageState extends State<HomePage>
 
   // ─────────────────────────────────────────────
   // PHASE INDEX
-  // Maps cyclePhase string → index in _cyclePhases
+  // Maps primary cyclePhase string → index in _cyclePhases
+  // Order: Menstruation(0) → Fertile(1) → Ovulation(2) → Luteal(3)
   // ─────────────────────────────────────────────
   int get _phaseIndex {
     switch (cyclePhase?.toLowerCase()) {
-      case 'period':      return 0;
-      case 'follicular':  return 1;
-      case 'fertile':     return 2;
-      case 'ovulation':   return 3;
-      default:            return 0;
+      case 'menstruation': return 0;
+      case 'fertile':      return 1;
+      case 'ovulation':    return 2;
+      case 'luteal':       return 3;
+      default:             return 0;
     }
   }
 
   // ─────────────────────────────────────────────
   // DAY IN PHASE
   // Converts cumulative daysInCurrentCycle into
-  // days elapsed within the current phase only.
+  // days elapsed within the current primary phase only.
   // ─────────────────────────────────────────────
   int get _dayInPhase {
     int completed = 0;
@@ -221,13 +235,13 @@ class _HomePageState extends State<HomePage>
       return ("Next Phase", 0);
     }
     switch (cyclePhase) {
-      case "Period":
+      case "Menstruation":
         return ("Fertile Phase", (daysUntilNextCycle! - 20).clamp(0, 999).toInt());
       case "Fertile":
         return ("Ovulation", 1);
       case "Ovulation":
         return ("Luteal Phase", (daysUntilNextCycle! - 7).clamp(0, 999).toInt());
-      case "Follicular/Luteal":
+      case "Luteal":
         return ("Next Period", daysUntilNextCycle ?? 0);
       default:
         return ("Next Phase", daysUntilNextCycle ?? 0);
@@ -336,6 +350,7 @@ class _HomePageState extends State<HomePage>
                 latest.docs.first.data() as Map<String, dynamic>;
                 final periodStart =
                 (cycle['start date'] as Timestamp).toDate();
+                // +1 so the first day of the period is Day 1 (not Day 0)
                 final dayInCycle = (_now.difference(periodStart)) +
                     const Duration(days: 1);
                 setState(() => daysInCurrentCycle = dayInCycle.inDays);
@@ -404,7 +419,7 @@ class _HomePageState extends State<HomePage>
                         DateUtils.isSameDay(_now, fertileEnd))) {
                   cycleColoring = const Color(0xFFFFD54F);
                 } else {
-                  cycleColoring = const Color(0xFFFFFFFF);
+                  cycleColoring = const Color(0xFF9C7FBF);
                 }
 
                 if (mounted) {
@@ -421,6 +436,23 @@ class _HomePageState extends State<HomePage>
     }
   }
 
+  // ─────────────────────────────────────────────
+  // GET CYCLE
+  // Determines both the primary phase and the
+  // concurrent secondary phase (Follicular overlay).
+  //
+  // Primary phases (outer ring):
+  //   Menstruation → Fertile → Ovulation → Luteal
+  //
+  // Follicular (inner overlay arc):
+  //   Runs concurrently from period start → fertileEnd (inclusive).
+  //   fertileEnd is the day BEFORE ovulation.
+  //
+  //   During Menstruation: Menstruation + Follicular
+  //   During Fertile:      Fertile + Follicular
+  //   During Ovulation:    Ovulation only (Follicular already ended)
+  //   During Luteal:       Luteal only
+  // ─────────────────────────────────────────────
   Future<void> getCycle() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -432,7 +464,10 @@ class _HomePageState extends State<HomePage>
         final data = userInfo.data() as Map<String, dynamic>?;
         if (data != null && mounted) {
           if (data['emptyRecord'] as bool) {
-            setState(() => cyclePhase = "Empty Record");
+            setState(() {
+              cyclePhase = "Empty Record";
+              cyclePhase2 = null;
+            });
           } else {
             _history = FirebaseFirestore.instance
                 .collection('cycle')
@@ -456,12 +491,13 @@ class _HomePageState extends State<HomePage>
                 final ovulation =
                 (cycle['ovulation'] as Timestamp).toDate();
 
+                // ── Determine primary phase ─────────────
                 String phase;
                 if ((_now.isAfter(periodStart) ||
                     DateUtils.isSameDay(_now, periodStart)) &&
                     (_now.isBefore(periodEnd) ||
                         DateUtils.isSameDay(_now, periodEnd))) {
-                  phase = "Period";
+                  phase = "Menstruation";
                 } else if (DateUtils.isSameDay(_now, ovulation)) {
                   phase = "Ovulation";
                 } else if ((_now.isAfter(fertileStart) ||
@@ -470,10 +506,30 @@ class _HomePageState extends State<HomePage>
                         DateUtils.isSameDay(_now, fertileEnd))) {
                   phase = "Fertile";
                 } else {
-                  phase = "Follicular";
+                  phase = "Luteal";
                 }
 
-                if (mounted) setState(() => cyclePhase = phase);
+                // ── Determine secondary phase ───────────
+                // Follicular runs from period start through fertileEnd
+                // (the day BEFORE ovulation, inclusive on both ends).
+                // This aligns follicular end with fertileEnd in Firestore.
+                String? phase2;
+                final isInFollicularWindow =
+                    (_now.isAfter(periodStart) ||
+                        DateUtils.isSameDay(_now, periodStart)) &&
+                        (_now.isBefore(fertileEnd) ||
+                            DateUtils.isSameDay(_now, fertileEnd));
+
+                if (isInFollicularWindow) {
+                  phase2 = "Follicular";
+                }
+
+                if (mounted) {
+                  setState(() {
+                    cyclePhase = phase;
+                    cyclePhase2 = phase2;
+                  });
+                }
               }
             });
           }
@@ -547,10 +603,10 @@ class _HomePageState extends State<HomePage>
             .update({'cycle length': previousCycleLength.inDays});
 
         final allData = await history.get();
-        // BUG FIX 4: Use 'cycle length' field safely, defaulting to cycleLength
-        // if the field is missing (e.g. old records without it).
         final cycleLengths = allData.docs
-            .map((doc) => (doc.data() as Map<String, dynamic>)['cycle length'] as int? ?? cycleLength)
+            .map((doc) =>
+        (doc.data() as Map<String, dynamic>)['cycle length'] as int? ??
+            cycleLength)
             .toList();
         int sumOfCycleLength = 0;
         for (int len in cycleLengths) {
@@ -606,8 +662,6 @@ class _HomePageState extends State<HomePage>
         'fertile start': fertileStart,
         'fertile end': fertileEnd,
         'ovulation': ovulation,
-        // BUG FIX 4: Store cycle length in the new history doc so future
-        // smart-prediction average calculations can read it without crashing.
         'cycle length': cycleLength,
         'period length': periodLength,
       });
@@ -677,6 +731,141 @@ class _HomePageState extends State<HomePage>
 
       await history.doc(latestId).update({'period end': date});
       if (mounted) setState(() => start = true);
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // CONFIRMATION DIALOG
+  // Shows before starting or ending a period log.
+  // Only calls the actual action on confirm.
+  // ─────────────────────────────────────────────
+  Future<void> _showCycleConfirmation() async {
+    final bool isStarting = start;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          backgroundColor: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ── Icon ───────────────────────────
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFB56A7E).withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isStarting
+                        ? Icons.water_drop_outlined
+                        : Icons.check_circle_outline,
+                    color: const Color(0xFFB56A7E),
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // ── Title ──────────────────────────
+                Text(
+                  isStarting ? "Start Period?" : "End Period?",
+                  style: const TextStyle(
+                    fontFamily: "CormorantGaramond",
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF44222B),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // ── Subtitle ───────────────────────
+                Text(
+                  isStarting
+                      ? "This will start a new cycle and reset the counter back to Day 1."
+                      : "This will mark today as the last day of your period and move to the next phase.",
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: "DMSans",
+                    fontSize: 13,
+                    color: Color(0xFF7A5566),
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // ── Buttons ────────────────────────
+                Row(
+                  children: [
+                    // Cancel
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(ctx).pop(false),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(
+                            color: Color(0xFFB56A7E),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text(
+                          "Cancel",
+                          style: TextStyle(
+                            fontFamily: "DMSans",
+                            color: Color(0xFFB56A7E),
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Confirm
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(ctx).pop(true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFB56A7E),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          elevation: 0,
+                        ),
+                        child: Text(
+                          isStarting ? "Start" : "End",
+                          style: const TextStyle(
+                            fontFamily: "DMSans",
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (confirmed == true && mounted) {
+      if (isStarting) {
+        await addCycleHistory();
+      } else {
+        await updateCycleHistory();
+      }
     }
   }
 
@@ -834,12 +1023,13 @@ class _HomePageState extends State<HomePage>
                   // ── PROPORTIONAL CYCLE RING ─────────────────
                   Center(
                     child: SizedBox(
-                      width: 180,
-                      height: 180,
+                      width: 200,
+                      height: 200,
                       child: CustomPaint(
                         painter: _CycleRingPainter(
                           phaseIndex: _phaseIndex,
                           dayInPhase: _dayInPhase,
+                          daysInCurrentCycle: daysInCurrentCycle,
                         ),
                         child: Center(
                           child: SizedBox(
@@ -848,16 +1038,39 @@ class _HomePageState extends State<HomePage>
                               mainAxisSize: MainAxisSize.min,
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Text(
-                                  cyclePhase ?? "—",
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontFamily: "DMSans",
-                                    color: Color(0xFFF7F3F5),
-                                    fontSize: 11,
-                                    height: 1.2,
+                                // ── Phase label(s) above the day number ──
+                                if (cyclePhase2 != null) ...[
+                                  Text(
+                                    cyclePhase ?? "—",
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontFamily: "DMSans",
+                                      color: Color(0xFFF7F3F5),
+                                      fontSize: 10,
+                                      height: 1.3,
+                                    ),
                                   ),
-                                ),
+                                  Text(
+                                    "& ${cyclePhase2!}",
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontFamily: "DMSans",
+                                      color: _follicularColor,
+                                      fontSize: 10,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ] else
+                                  Text(
+                                    cyclePhase ?? "—",
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontFamily: "DMSans",
+                                      color: Color(0xFFF7F3F5),
+                                      fontSize: 11,
+                                      height: 1.2,
+                                    ),
+                                  ),
                                 const SizedBox(height: 2),
                                 Text(
                                   "Day ${daysInCurrentCycle ?? 0}",
@@ -879,17 +1092,22 @@ class _HomePageState extends State<HomePage>
 
                   const SizedBox(height: 12),
 
-                  // ── PHASE LEGEND ─────────────────────────────
-                  // BUG FIX 3: Removed the stray extra `)` that was
-                  // prematurely closing the Column widget here.
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _legendDot(const Color(0xFFE57373), "PERIOD"),
-                      _legendDot(const Color(0xFFFFFFFF), "FOLLICULAR"),
-                      _legendDot(const Color(0xFFFFD54F), "FERTILE"),
-                      _legendDot(const Color(0xFF6ED6A5), "OVULATION"),
-                    ],
+                  // ── PHASE LEGEND (5 phases, scrollable) ──────
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _legendDot(const Color(0xFFE57373), "MENSTRUATION"),
+                        const SizedBox(width: 8),
+                        _legendDot(_follicularColor, "FOLLICULAR"),
+                        const SizedBox(width: 8),
+                        _legendDot(const Color(0xFFFFD54F), "FERTILE"),
+                        const SizedBox(width: 8),
+                        _legendDot(const Color(0xFF6ED6A5), "OVULATION"),
+                        const SizedBox(width: 8),
+                        _legendDot(const Color(0xFF9C7FBF), "LUTEAL"),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -960,13 +1178,15 @@ class _HomePageState extends State<HomePage>
           _selectedIndex == 1
               ? _buildHomeContent()
               : _pages[_selectedIndex],
+          // Cat button only shown on home tab; tapping opens the
+          // confirmation dialog before performing any Firestore writes.
           if (_selectedIndex == 1)
             Positioned(
               right: 0,
               bottom: 0,
               child: PeriodCatButton(
                 isPeriodStatus: start,
-                onTap: start ? addCycleHistory : updateCycleHistory,
+                onTap: _showCycleConfirmation,
               ),
             ),
         ],
@@ -998,6 +1218,7 @@ class _HomePageState extends State<HomePage>
   // ─────────────────────────────────────────────
   Widget _legendDot(Color color, String label) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 10,
@@ -1007,7 +1228,7 @@ class _HomePageState extends State<HomePage>
             borderRadius: BorderRadius.circular(3),
           ),
         ),
-        const SizedBox(width: 6),
+        const SizedBox(width: 4),
         Text(
           label,
           style: const TextStyle(
@@ -1072,91 +1293,124 @@ class _HomePageState extends State<HomePage>
 // ─────────────────────────────────────────────
 // CYCLE RING PAINTER
 //
-// Draws four arcs clockwise starting at 12 o'clock:
-//   Period (5d) → Follicular (9d) → Fertile (5d) → Ovulation (9d)
+// OUTER RING — 4 proportional arcs (clockwise from 12 o'clock):
+//   Menstruation (5d) → Fertile (5d) → Ovulation (1d) → Luteal (17d)
+//   Each arc span = (phaseDays / 28) × 360°
+//   A 2.5° gap separates each segment.
 //
-// Each arc's angular span = (phaseDays / 28) × 360°.
-// A 2.5° gap separates each segment for visual clarity.
+// INNER RING — Follicular overlay arc:
+//   Thinner ring drawn at a slightly smaller radius.
+//   Spans angular range of days 1–10 (Menstruation + Fertile only).
+//   Ends at fertileEnd — the day BEFORE ovulation.
+//   Progresses based on daysInCurrentCycle, capped at _follicularDays (10).
 //
-// States:
-//   • Completed phases  → full arc at high opacity (0.85)
-//   • Active phase      → fills 0→full as dayInPhase increases,
-//                         with opacity rising from 0.20 to 0.85
-//   • Future phases     → faint background track only (0.13)
+// Arc states:
+//   Completed phases  → full arc at 0.85 opacity
+//   Active phase      → partial fill based on dayInPhase/phase.days
+//   Future phases     → faint background track only (0.13 opacity)
 // ─────────────────────────────────────────────
 class _CycleRingPainter extends CustomPainter {
   final int phaseIndex;
   final int dayInPhase;
+  final int? daysInCurrentCycle;
 
   const _CycleRingPainter({
     required this.phaseIndex,
     required this.dayInPhase,
+    this.daysInCurrentCycle,
   });
 
   // Gap between segments in radians (~2.5°)
   static const double _gapRad = 0.0436;
-  // Stroke width of the ring arcs
+  // Stroke width of the outer primary ring arcs
   static const double _sw = 16.0;
+  // Stroke width of the inner follicular overlay arc
+  static const double _follicularSw = 6.0;
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    // Radius shrunk by half stroke so the arc stays within the widget bounds
-    final radius = (size.width / 2) - _sw;
-
-    // 12 o'clock = -π/2
-    double startAngle = -pi / 2;
+    // Outer ring radius — shrunk by half stroke to stay within bounds
+    final outerRadius = (size.width / 2) - _sw;
+    // Inner ring radius — sits just inside the outer ring with a small gap
+    final innerRadius = outerRadius - _sw - 4;
 
     final paint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = _sw
       ..strokeCap = StrokeCap.butt;
+
+    // ── OUTER RING: 4 primary phase segments ─────────
+    double startAngle = -pi / 2;
 
     for (int i = 0; i < _cyclePhases.length; i++) {
       final phase = _cyclePhases[i];
-      // Angular span proportional to this phase's days
       final segAngle = (phase.days / _totalDays) * 2 * pi - _gapRad;
-      final rect = Rect.fromCircle(center: center, radius: radius);
+      final rect = Rect.fromCircle(center: center, radius: outerRadius);
 
-      // ── Background track (always visible, very faint) ──
+      paint.strokeWidth = _sw;
+
+      // Background track (always visible, very faint)
       paint.color = phase.color.withOpacity(0.13);
-      paint.strokeCap = StrokeCap.butt;
       canvas.drawArc(rect, startAngle, segAngle, false, paint);
 
       if (i < phaseIndex) {
-        // ── Completed phase: fully filled ──────────────
+        // Completed phase: fully filled
         paint.color = phase.color.withOpacity(0.85);
         canvas.drawArc(rect, startAngle, segAngle, false, paint);
       } else if (i == phaseIndex) {
-        // BUG FIX 1 & 2: Closed the else-if block correctly and ensured
-        // startAngle advances for every segment, not just when fillAngle > 0.
+        // Active phase: partial fill
         final progress = (dayInPhase / phase.days).clamp(0.0, 1.0);
         final fillAngle = segAngle * progress;
-
         if (fillAngle > 0) {
           paint.color = phase.color.withOpacity(0.85);
-          paint.strokeCap = StrokeCap.butt;
           canvas.drawArc(rect, startAngle, fillAngle, false, paint);
         }
       }
-      // Future phases: only the faint background track drawn above.
+      // Future phases: only the faint background track above.
 
-      // BUG FIX 1: startAngle must advance OUTSIDE all if/else branches
-      // so every segment (past, active, future) is positioned correctly.
       startAngle += segAngle + _gapRad;
-    } // BUG FIX 2: This closing brace properly ends the for loop.
+    }
+
+    // ── INNER RING: Follicular overlay ───────────────
+    // Angular span covers Menstruation (5d) + Fertile (5d) = 10 days.
+    // This ends at fertileEnd, the day before ovulation.
+    // We include only the 1 gap between segment 0→1.
+    // The gap before Ovulation is NOT included (follicular ends at fertileEnd).
+    final follicularTotalAngle =
+        (_follicularDays / _totalDays) * 2 * pi - (_gapRad * 1);
+    final follicularRect =
+    Rect.fromCircle(center: center, radius: innerRadius);
+
+    paint.strokeWidth = _follicularSw;
+
+    // Background track for follicular
+    paint.color = _follicularColor.withOpacity(0.18);
+    canvas.drawArc(
+        follicularRect, -pi / 2, follicularTotalAngle, false, paint);
+
+    // Progress fill: how many follicular days have elapsed (max 10)
+    final follicularDay =
+    (daysInCurrentCycle ?? 0).clamp(0, _follicularDays);
+    if (follicularDay > 0) {
+      final progress = follicularDay / _follicularDays;
+      final fillAngle = follicularTotalAngle * progress;
+      paint.color = _follicularColor.withOpacity(0.85);
+      canvas.drawArc(follicularRect, -pi / 2, fillAngle, false, paint);
+    }
   }
 
   @override
   bool shouldRepaint(_CycleRingPainter old) =>
       phaseIndex != old.phaseIndex ||
-          dayInPhase != old.dayInPhase;
+          dayInPhase != old.dayInPhase ||
+          daysInCurrentCycle != old.daysInCurrentCycle;
 }
 
 // ─────────────────────────────────────────────
 // PERIOD CAT BUTTON
 // Animated floating cat with cloud bubble.
-// Tapping starts or ends a period log entry.
+// Tapping triggers the confirmation dialog in the parent.
+// Position and layout are unchanged from original.
 // ─────────────────────────────────────────────
 class PeriodCatButton extends StatefulWidget {
   final bool isPeriodStatus;

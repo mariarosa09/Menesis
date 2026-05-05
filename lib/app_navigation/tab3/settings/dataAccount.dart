@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '/app_navigation/tab3/settings/changePass.dart';
 import '/app_navigation/tab3/settings/changeEmail.dart';
+import '/registration/initialLength.dart';
+import '/registration/main.dart';
 
 /// ============================================================
 /// DataAccountScreen
-/// - Ito ang screen para sa "Data & Account" settings ng user.
-/// - Naglalaman ng options: Change Password, Change Email,
-///   Clear Data, at Delete Account.
+/// - Settings screen for "Data & Account".
+/// - Options: Change Password, Change Email, Clear Data,
+///   Delete Account (soft-delete — recoverable for 30 days).
 /// ============================================================
 class DataAccountScreen extends StatelessWidget {
   const DataAccountScreen({super.key});
@@ -16,17 +20,11 @@ class DataAccountScreen extends StatelessWidget {
     return Scaffold(
       body: Stack(
         children: [
-
-          /// --- BACKGROUND GRADIENT ---
-          /// Naglalagay ng gradient background mula top hanggang bottom.
-          /// Ginagawa itong visual base ng buong screen.
+          // --- BACKGROUND GRADIENT ---
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  Color(0xFFF7F3F5),
-                  Color(0xFFF1E6EA),
-                ],
+                colors: [Color(0xFFF7F3F5), Color(0xFFF1E6EA)],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
@@ -39,11 +37,7 @@ class DataAccountScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-
-                  /// --- HEADER ROW (Back Button + Title) ---
-                  /// Nagpapakita ng back arrow at ng title na "Data & Account".
-                  /// Ang Transform.translate ay ginagamit para i-align nang maayos
-                  /// ang icon at text sa loob ng row.
+                  // --- HEADER ---
                   const SizedBox(height: 15),
                   Row(
                     children: [
@@ -62,10 +56,8 @@ class DataAccountScreen extends StatelessWidget {
                               highlightColor:
                               const Color(0xFFB56A7E).withOpacity(0.3),
                               child: const Center(
-                                child: Icon(
-                                  Icons.arrow_back,
-                                  color: Color(0xFF3A1F3D),
-                                ),
+                                child: Icon(Icons.arrow_back,
+                                    color: Color(0xFF3A1F3D)),
                               ),
                             ),
                           ),
@@ -87,44 +79,33 @@ class DataAccountScreen extends StatelessWidget {
 
                   const SizedBox(height: 25),
 
-                  /// --- ACCOUNT OPTIONS LIST ---
-                  /// Bawat _accountOption() ay isang tappable row na may icon at label.
-                  /// Ang Divider() sa pagitan ay separator para sa bawat option.
-
-                  // Change Password — dinidiretso sa ChangePasswordScreen
+                  // Change Password
                   _accountOption(
                     icon: Icons.lock_outline,
                     title: "Change Password",
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChangePasswordScreen(),
-                        ),
-                      );
-                    },
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => ChangePasswordScreen()),
+                    ),
                   ),
 
                   const Divider(),
 
-                  // Change Email — dinidiretso sa ChangeEmailScreen
+                  // Change Email
                   _accountOption(
                     icon: Icons.mail_outline,
                     title: "Change Email",
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChangeEmailScreen(),
-                        ),
-                      );
-                    },
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => ChangeEmailScreen()),
+                    ),
                   ),
 
                   const SizedBox(height: 5),
                   const Divider(),
 
-                  // Clear Data — nagbubukas ng confirmation dialog
+                  // Clear Data
                   _accountOption(
                     icon: Icons.cleaning_services_outlined,
                     title: "Clear Data",
@@ -133,7 +114,7 @@ class DataAccountScreen extends StatelessWidget {
 
                   const Divider(),
 
-                  // Delete Account — nagbubukas ng confirmation dialog (danger action)
+                  // Delete Account (soft-delete)
                   _accountOption(
                     icon: Icons.delete_outline,
                     title: "Delete Account",
@@ -149,21 +130,15 @@ class DataAccountScreen extends StatelessWidget {
     );
   }
 
-  /// ============================================================
-  /// _accountOption()
-  /// - Reusable widget para sa bawat row ng setting option.
-  /// - May icon, label, at optional arrow sa kanan.
-  /// - Ang isDanger flag ay nagbabago ng kulay ng icon at text sa pula
-  ///   para sa destructive actions tulad ng Delete Account.
-  /// ============================================================
+  // -----------------------------------------------------------
+  // _accountOption()
+  // -----------------------------------------------------------
   Widget _accountOption({
     required IconData icon,
     required String title,
     bool isDanger = false,
     VoidCallback? onTap,
   }) {
-    // Tinatanggal ang arrow para sa Clear Data at Delete Account
-    // dahil hindi sila nagdidiretso sa ibang screen.
     final bool showArrow =
         title != "Clear Data" && title != "Delete Account";
 
@@ -174,10 +149,8 @@ class DataAccountScreen extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 16),
         child: Row(
           children: [
-            Icon(
-              icon,
-              color: isDanger ? Colors.red : const Color(0xFFB56A7E),
-            ),
+            Icon(icon,
+                color: isDanger ? Colors.red : const Color(0xFFB56A7E)),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -196,125 +169,165 @@ class DataAccountScreen extends StatelessWidget {
     );
   }
 
-  /// ============================================================
-  /// _showClearDataDialog()
-  /// - Nagpapakita ng confirmation dialog bago i-clear ang app data.
-  /// - Ginagamit ang _customDialog() para sa consistent na UI.
-  /// ============================================================
+  // -----------------------------------------------------------
+  // _showClearDataDialog() — resets Firestore docs to defaults
+  // -----------------------------------------------------------
   void _showClearDataDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) {
-        return _customDialog(
-          context,
-          title: "Clear Data",
-          message:
-          "Are you sure you want to clear all app data?\n\nThis action cannot be undone.",
-          confirmText: "Clear",
-          onConfirm: () {
-            // TODO: (EDIT) - I-implement ang actual na Clear Data logic dito.
-            // Kapag pinindot ng user ang "Clear" button, dapat:
-            // 1. I-reset ang lahat ng locally stored data ng user
-            //    (e.g., SharedPreferences, Hive, local DB)
-            //    PERO hindi dapat mabura ang account sa database —
-            //    existing pa rin ang account, local data lang ang mawawala.
-            // 2. Pagkatapos ma-clear ang data, i-refresh/restart ang app
-            //    para magsimula ulit sa initial state (parang bagong install).
-            // 3. I-navigate ang user pabalik sa homepage automatically
-            //    (ilang seconds after ng successful clear — depende sa implementation).
-            // 4. Magpakita ng SnackBar message na nagsasabi na
-            //    successful ang pag-clear ng data.
-            // Tip: Pwedeng gamitin ang Navigator.pushAndRemoveUntil()
-            //      para i-reset ang navigation stack, at ang
-            //      RestartWidget / Phoenix package para i-restart ang app.
-            // The code should be placed here
+      builder: (_) => _customDialog(
+        context,
+        title: "Clear Data",
+        message:
+        "Are you sure you want to clear all app data?\n\nThis action cannot be undone.",
+        confirmText: "Clear",
+        onConfirm: () async {
+          Navigator.pop(context);
+          try {
+            final user = FirebaseAuth.instance.currentUser;
+            if (user == null) return;
 
-          },
-        );
-      },
+            await FirebaseFirestore.instance
+                .collection('cycle')
+                .doc(user.uid)
+                .set({
+              'cycle type': 'Regular',
+              'cycle length': 28,
+              'period length': 3,
+              'status': true,
+              'emptyRecord': true,
+              'setupComplete': false,
+            });
+
+            await FirebaseFirestore.instance
+                .collection('settings')
+                .doc(user.uid)
+                .set({
+              'smart prediction': true,
+              'period notification': true,
+              'ovulation notification': false,
+              'log reminder': true,
+              'summary': false,
+              'setupComplete': false,
+            });
+
+            if (context.mounted) {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const PeriodSetupScreen()),
+                    (route) => false,
+              );
+            }
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("Failed to clear data. Please try again."),
+                  backgroundColor: Color(0xFFB56A7E),
+                ),
+              );
+            }
+          }
+        },
+      ),
     );
   }
 
-  /// ============================================================
-  /// _showDeleteAccountDialog()
-  /// - Nagpapakita ng confirmation dialog bago i-delete ang account.
-  /// - May warning na ang account ay maaaring ma-recover within 30 days.
-  /// ============================================================
+  // -----------------------------------------------------------
+  // _showDeleteAccountDialog()
+  //
+  // SOFT DELETE — does NOT immediately erase data.
+  //   1. Writes  users/{uid} → { deleted: true, deletedAt: now }
+  //   2. Signs the user out and sends them to the Login screen.
+  //
+  // On the next login (see LoginScreen / AuthCubit), the app
+  // checks this flag and offers a 30-day recovery window.
+  // After 30 days, the account is permanently deleted.
+  // -----------------------------------------------------------
   void _showDeleteAccountDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) {
-        return _customDialog(
-          context,
-          title: "Delete Account",
-          message:
-          "Are you sure you want to delete your account?\n\nAll your data will be permanently removed.\n\nYou can recover your account within 30 days. After that, it cannot be restored.",
-          confirmText: "Delete",
-          isDanger: true,
-          onConfirm: () {
-            // TODO: (EDIT) - I-implement ang actual na Delete Account logic dito.
-            // Kapag pinindot ng user ang "Delete" button, dapat:
-            // 1. Huwag agad na burahin ang account sa database.
-            //    I-mark lang ang account bilang "deleted" o "pending_deletion"
-            //    at i-store ang deletion timestamp sa database.
-            // 2. Ang account ay mananatili sa database ng 30 days
-            //    mula deletion date. Pwedeng gumamit ng scheduled job /
-            //    cloud function para awtomatikong tanggalin ang account
-            //    pagkatapos ng 30 days kung hindi na-retrieve ng owner.
-            // 3. Kung gusto mong payagan ang user na ma-recover ang account
-            //    within 30 days, gumawa ng separate recovery screen o flow.
-            // 4. Pagkatapos ma-mark bilang deleted, i-log out ang user at
-            //    i-navigate siya sa login/onboarding screen.
-            // Tip: Sa Firestore, pwedeng mag-add ng field na:
-            //      "isDeleted: true" at "deletedAt: Timestamp"
-            //      Tapos gumawa ng Cloud Function na nag-check
-            //      at nag-delete after 30 days.
-            // The code should be placed here
+      builder: (_) => _customDialog(
+        context,
+        title: "Delete Account",
+        message:
+        "Are you sure you want to delete your account?\n\n"
+            "Your data will be kept for 30 days. You can recover "
+            "your account by logging in within that window.\n\n"
+            "After 30 days, everything is permanently removed.",
+        confirmText: "Delete",
+        isDanger: true,
+        onConfirm: () async {
+          Navigator.pop(context);
+          try {
+            final user = FirebaseAuth.instance.currentUser;
+            if (user == null) return;
 
-          },
-        );
-      },
+            // Mark as soft-deleted — do NOT call user.delete() here.
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .set({
+              'deleted': true,
+              'deletedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+
+            // Sign out so the user can't keep using the app.
+            await FirebaseAuth.instance.signOut();
+
+            if (context.mounted) {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (route) => false,
+              );
+            }
+          } on FirebaseAuthException catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(e.message ?? "An error occurred."),
+                  backgroundColor: const Color(0xFFB56A7E),
+                ),
+              );
+            }
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("Failed to delete account. Please try again."),
+                  backgroundColor: Color(0xFFB56A7E),
+                ),
+              );
+            }
+          }
+        },
+      ),
     );
   }
 
-  /// ============================================================
-  /// _customDialog()
-  /// - Reusable custom dialog widget para sa Clear Data at Delete Account.
-  /// - Naglalaman ng warning icon, title, message, Cancel, at Confirm buttons.
-  /// - Ang isDanger flag ay dating nagbabago ng kulay pero pareho naman
-  ///   ang dalawa, kaya na-simplify na ang logic dito.
-  /// ============================================================
+  // -----------------------------------------------------------
+  // _customDialog()
+  // -----------------------------------------------------------
   Widget _customDialog(
       BuildContext context, {
         required String title,
         required String message,
         required String confirmText,
         bool isDanger = false,
-        required VoidCallback onConfirm,
+        required Future<void> Function() onConfirm,
       }) {
     return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(25),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-
-            /// --- WARNING ICON ---
-            /// Nagpapakita ng warning icon para alertin ang user
-            /// na ang action na ito ay may epekto at hindi basta-basta.
-            Icon(
-              Icons.warning_amber_rounded,
-              color: Colors.redAccent[700],
-              size: 40,
-            ),
-
+            Icon(Icons.warning_amber_rounded,
+                color: Colors.redAccent[700], size: 40),
             const SizedBox(height: 15),
-
-            /// --- DIALOG TITLE ---
-            /// Ang title ay bold at may dark color para sa emphasis.
             Text(
               title,
               style: const TextStyle(
@@ -323,28 +336,14 @@ class DataAccountScreen extends StatelessWidget {
                 color: Color(0xFF301C29),
               ),
             ),
-
             const SizedBox(height: 15),
-
-            /// --- DIALOG MESSAGE ---
-            /// Nagpapaliwanag ng consequences ng action sa user.
-            /// Center-aligned para mas madaling mabasa.
             Text(
               message,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                height: 1.5,
-                fontSize: 14,
-                color: Colors.black87,
-              ),
+                  height: 1.5, fontSize: 14, color: Colors.black87),
             ),
-
             const SizedBox(height: 20),
-
-            /// --- ACTION BUTTONS (Cancel + Confirm) ---
-            /// Dalawang buttons sa isang Row:
-            /// - Cancel: nag-close ng dialog, walang nangyayari.
-            /// - Confirm: nag-e-execute ng action (Clear o Delete).
             Row(
               children: [
                 Expanded(
@@ -353,13 +352,10 @@ class DataAccountScreen extends StatelessWidget {
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
+                          borderRadius: BorderRadius.circular(20)),
                     ),
-                    child: const Text(
-                      "Cancel",
-                      style: TextStyle(color: Colors.black),
-                    ),
+                    child: const Text("Cancel",
+                        style: TextStyle(color: Colors.black)),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -370,13 +366,10 @@ class DataAccountScreen extends StatelessWidget {
                       backgroundColor: const Color(0xFF301C29),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
+                          borderRadius: BorderRadius.circular(20)),
                     ),
-                    child: Text(
-                      confirmText,
-                      style: const TextStyle(color: Colors.white),
-                    ),
+                    child: Text(confirmText,
+                        style: const TextStyle(color: Colors.white)),
                   ),
                 ),
               ],
