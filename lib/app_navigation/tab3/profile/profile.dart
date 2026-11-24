@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:menesis_app/auth/presentation/auth_cubit.dart';
+import 'package:menesis_app/services/cycle_repository.dart';
 import 'editProfile.dart';
 import '/app_navigation/tab3/settings/dataAccount.dart';
 import '/app_navigation/tab3/settings/notifs.dart';
@@ -52,22 +53,19 @@ class ManageProfileScreen extends StatefulWidget {
 }
 
 class _ManageProfileScreenState extends State<ManageProfileScreen> {
-  StreamSubscription<DocumentSnapshot>? _userName;
-  StreamSubscription<DocumentSnapshot>? _userEmail;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userSub;
+  StreamSubscription<CycleInfo?>? _cycleSub;
 
   @override
   void initState() {
-    getUserName();
-    getUserEmail();
-    getPeriodLength();
-    getCycleLength();
+    _subscribeToProfile();
     super.initState();
   }
 
   @override
   void dispose() {
-    _userName?.cancel();
-    _userEmail?.cancel();
+    _userSub?.cancel();
+    _cycleSub?.cancel();
     super.dispose();
   }
 
@@ -76,80 +74,42 @@ class _ManageProfileScreenState extends State<ManageProfileScreen> {
   String? periodLength;
   String? cycleLength;
 
-  void getUserName() async {
+  /// One listener for the user document (name + email) and one for the
+  /// cycle settings, instead of two listeners on the same document plus two
+  /// separate reads of `cycle info`. The cycle listener also keeps the
+  /// lengths in sync after editing them, so no manual re-fetch is needed.
+  void _subscribeToProfile() {
     final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final repo = CycleRepository.instance;
 
-    if (user != null) {
-      _userName = FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .snapshots()
-          .listen((DocumentSnapshot userInfo) {
-
-        final data = userInfo.data() as Map<String, dynamic>?;
-
-        if (data != null && mounted) {
-          if (userInfo['first name'] == "" && userInfo['middle initial'] == "" && userInfo['last name'] == "") {
-            setState(() {
-              name = userInfo['username'];
-            });
-          }
-          else if (userInfo['middle initial'] == "") {
-            String username = "${userInfo['first name']} ${userInfo['last name']}";
-            if(mounted) {
-              setState(() {
-                name = username;
-              });
-            }
-          }
-          else {
-            String username = "${userInfo['first name']} ${userInfo['middle initial']}. ${userInfo['last name']}";
-            if (mounted) {
-              setState(() {
-                name = username;
-              });
-            }
-          }
-        }
+    _userSub = repo.userDoc(user.uid).snapshots().listen((snap) {
+      final data = snap.data();
+      if (data == null || !mounted) return;
+      final String first  = data['first name'] ?? '';
+      final String middle = data['middle initial'] ?? '';
+      final String last   = data['last name'] ?? '';
+      String display;
+      if (first.isEmpty && middle.isEmpty && last.isEmpty) {
+        display = data['username'] ?? '';
+      } else if (middle.isEmpty) {
+        display = "$first $last";
+      } else {
+        display = "$first $middle. $last";
+      }
+      setState(() {
+        name  = display;
+        email = data['email'];
       });
-    }
-  }
+    }, onError: (e) => debugPrint('Profile listener error: $e'));
 
-  void getUserEmail() async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user != null) {
-      _userEmail = FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .snapshots()
-          .listen((DocumentSnapshot userInfo) {
-
-        final data = userInfo.data() as Map<String, dynamic>?;
-
-        if (data != null && mounted) {
-          setState(() {
-            email = data['email'];
-          });
-        }
+    _cycleSub = repo.cycleInfoStream().listen((info) {
+      if (info == null || !mounted) return;
+      setState(() {
+        periodLength = info.periodLength.toString();
+        cycleLength  = info.cycleLength.toString();
       });
-    }
-  }
-
-  void getPeriodLength() async {
-    String? authUid = FirebaseAuth.instance.currentUser?.uid;
-    DocumentSnapshot userPeriod = await FirebaseFirestore.instance.collection('users').doc(authUid).collection('cycle').doc('cycle info').get();
-    setState(() {
-      periodLength = userPeriod['period length'].toString();
-    });
-  }
-
-  void getCycleLength() async {
-    String? authUid = FirebaseAuth.instance.currentUser?.uid;
-    DocumentSnapshot userCycle = await FirebaseFirestore.instance.collection('users').doc(authUid).collection('cycle').doc('cycle info').get();
-    setState(() {
-      cycleLength = userCycle['cycle length'].toString();
-    });
+    }, onError: (e) => debugPrint('Cycle info listener error: $e'));
   }
 
   @override
@@ -367,8 +327,6 @@ class _ManageProfileScreenState extends State<ManageProfileScreen> {
                                 ),
                               ),
                             );
-                            // Refresh data after returning
-                            getPeriodLength();
                           },
                         ),
 
@@ -387,7 +345,6 @@ class _ManageProfileScreenState extends State<ManageProfileScreen> {
                                 ),
                               ),
                             );
-                            getCycleLength();
                           },
                         ),
                       ],

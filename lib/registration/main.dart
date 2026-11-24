@@ -10,6 +10,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:menesis_app/firebase_options.dart';
 import 'package:menesis_app/app_navigation/tab2/homepage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:menesis_app/services/notification_service.dart';
 import 'dart:async';
 
 // ============================================================
@@ -18,6 +19,7 @@ import 'dart:async';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await NotificationService.instance.init();
   runApp(MyApp());
 }
 

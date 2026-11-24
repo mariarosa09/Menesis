@@ -1,6 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
+import '/services/cycle_repository.dart';
 import '/app_navigation/tab1/dailyLog.dart';
 import '/app_navigation/tab1/viewReason.dart';
 import '/app_navigation/tab1/viewRemedy.dart';
@@ -23,25 +23,41 @@ class _CalendarScreenState extends State<CalendarScreen> {
   late DateTime _selectedMonth;
   late DateTime _selectedDate;
 
-  // ── Period prediction logic state (kept from old file) ──────
+  final _repo = CycleRepository.instance;
+
+  /// true = "Start Period", false = "End Period" (live from `cycle info`).
   bool start = true;
 
-  List<DateTime>? startDate;
-  List<DateTime>? endDate;
-  List<DateTime>? startFertile;
-  List<DateTime>? endFertile;
-  List<DateTime>? ovulation;
+  /// All cycle records, kept up to date by a single Firestore listener,
+  /// so the grid refreshes automatically after starting/ending a period.
+  List<CycleRecord> _cycles = const [];
+  StreamSubscription<List<CycleRecord>>? _cyclesSub;
+  StreamSubscription<CycleInfo?>? _infoSub;
+
+  /// Symptom log of the selected date (fetched once per selection and
+  /// reused by "View Reason" / "View Remedy").
+  Map<String, dynamic>? _selectedLog;
 
   String _logText  = '';
   String _noteText = '';
   bool   _isValidDay = true;
 
-  bool _loading = false;
+  bool _loading = true;
 
   static const List<String> _months = [
     "January","February","March","April","May","June",
     "July","August","September","October","November","December",
   ];
+
+  static const _symptomIcon = {
+    "Cramps": "🤕", "Headaches": "🤯", "Nausea": "🤢", "Bloating": "😖",
+    "Breast Tenderness": "💢", "Breakouts": "😬", "Cravings": "🍫",
+    "Stress": "😫", "Constipation": "🚫", "Diarrhea": "💩",
+  };
+  static const _moodIcon = {
+    "Mood Swing": "🔄", "Irritable": "😠", "Sad": "😢", "Anxious": "😰",
+    "Confident": "😎", "Happy": "😊", "Impatient": "😤", "Inspired": "✨",
+  };
 
   // ──────────────────────────────────────────────────────────
   // LIFECYCLE
@@ -52,328 +68,96 @@ class _CalendarScreenState extends State<CalendarScreen> {
     super.initState();
     _selectedMonth = DateTime(_today.year, _today.month);
     _selectedDate  = _today;
-    _refreshData();
-    getLogStatus();
-    getNotes(_selectedDate);
-    _getLogText(_selectedDate);
-  }
 
-  // ──────────────────────────────────────────────────────────
-  // PERIOD PREDICTION LOGIC (kept from old file)
-  // ──────────────────────────────────────────────────────────
+    _infoSub = _repo.cycleInfoStream().listen((info) {
+      if (info != null && mounted) setState(() => start = info.status);
+    }, onError: (e) => debugPrint('Cycle info listener error: $e'));
 
-  void getLogStatus() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      DocumentSnapshot userCycleInfo = await FirebaseFirestore.instance
-          .collection('users').doc(user.uid).collection('cycle').doc('cycle info').get();
-      setState(() {
-        start = userCycleInfo['status'];
-      });
-    }
-  }
-
-  void getNotes(DateTime selectedDate) async {
-    final user = FirebaseAuth.instance.currentUser;
-    DateTime date = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
-
-    if (user != null) {
-      DocumentSnapshot log = await FirebaseFirestore.instance
-          .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
-          .collection('symptomsLogs').doc(date.toString()).get();
+    _cyclesSub = _repo.allCyclesStream().listen((cycles) {
       if (mounted) {
         setState(() {
-          if (log.exists) {
-            _noteText = log['notes'] ?? "";
-          } else {
-            _noteText = "";
-          }
+          _cycles  = cycles;
+          _loading = false;
         });
       }
-    }
+    }, onError: (e) {
+      debugPrint('Cycle history listener error: $e');
+      if (mounted) setState(() => _loading = false);
+    });
+
+    _loadLogForDate(_selectedDate);
   }
 
-  void saveNotes(DateTime selectedDate) async {
-    final user = FirebaseAuth.instance.currentUser;
-    DateTime date = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
-
-    if (user != null) {
-      await FirebaseFirestore.instance
-          .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
-          .collection('symptomsLogs').doc(date.toString()).set({
-        'notes': _noteText.trim(),
-      }, SetOptions(merge: true));
-    }
-  }
-
-  Future addCycleHistory(DateTime selectedDate) async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user != null) {
-      DocumentSnapshot userData = await FirebaseFirestore.instance
-          .collection('users').doc(user.uid).collection('cycle').doc('cycle info').get();
-
-      bool first = userData['emptyRecord'];
-
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('cycle').doc('cycle info').update({
-        'status': false,
-        'emptyRecord': false
-      });
-
-      int cycleLength = userData['cycle length'];
-
-      // Get setting data for smart prediction
-      DocumentSnapshot userSetting = await FirebaseFirestore.instance
-          .collection('users').doc(user.uid).collection('cycle').doc('cycle info').get();
-      bool smartPrediction = userSetting['smart prediction'];
-
-      // If smart prediction is on recompute and update the cycle length
-      if (smartPrediction && !first) {
-        // Get latest record
-        CollectionReference history = FirebaseFirestore.instance
-            .collection('users').doc(user.uid).collection('cycle').doc('cycle info').collection('periodLogs');
-        final QuerySnapshot latest = await history
-            .orderBy('cycle start date', descending: true).limit(1).get();
-        String latestId = latest.docs.first.id;
-
-        // Get the previous cycle's length
-        DocumentSnapshot userCycleHistory = await FirebaseFirestore.instance
-            .collection('users').doc(user.uid).collection('cycle').doc('cycle info').collection('periodLogs').doc(latestId).get();
-        final periodStart = (userCycleHistory['cycle start date'] as Timestamp).toDate();
-        Duration previousCycleLength = selectedDate.difference(periodStart);
-
-        // Update previous cycle's cycle length
-        await FirebaseFirestore.instance
-            .collection('users').doc(user.uid).collection('cycle').doc('cycle info').collection('periodLogs').doc(latestId).update({
-          'cycle length': previousCycleLength.inDays
-        });
-
-        // Get all cycle lengths
-        QuerySnapshot allData = await history.get();
-        List<int> cycleLengths = allData.docs
-            .map((doc) => (doc.get('cycle length') as int)).toList();
-        int sumOfCycleLength = 0;
-        int numOfCycleLength = cycleLengths.length;
-        for (int len in cycleLengths) {
-          sumOfCycleLength += len;
-        }
-        int average = (sumOfCycleLength / numOfCycleLength).ceil();
-        cycleLength = average;
-
-        // Update cycle length in the database
-        await FirebaseFirestore.instance
-            .collection('users').doc(user.uid).collection('cycle').doc('cycle info').update({
-          'cycle length': average
-        });
-
-        // Compute the previous fertile and ovulation based on the cycle length
-        DateTime fertileStart = periodStart
-            .add(Duration(days: previousCycleLength.inDays - 20));
-        DateTime fertileEnd = fertileStart.add(const Duration(days: 6));
-        DateTime ovulationDate = fertileEnd.subtract(const Duration(days: 1));
-
-        // Update the database
-        await FirebaseFirestore.instance
-            .collection('users').doc(user.uid).collection('cycle').doc('cycle info').collection('periodLogs').doc(latestId).update({
-          'fertile start date': fertileStart,
-          'fertile end date': fertileEnd,
-          'ovulation date': ovulationDate
-        });
-      }
-
-      // Get the average periodLength and cycleLength
-      int periodLength = userData['period length'];
-
-      // Compute predictions
-      DateTime startDateVal = selectedDate;
-      DateTime endDateVal = startDateVal.add(Duration(days: cycleLength - 1));
-      DateTime periodEnd = startDateVal.add(Duration(days: periodLength - 1));
-      DateTime fertileStart = startDateVal.add(Duration(days: cycleLength - 20));
-      DateTime fertileEnd = fertileStart.add(const Duration(days: 6));
-      DateTime ovulationDate = fertileEnd.subtract(const Duration(days: 1));
-
-      // Add predictions to firebase
-      await FirebaseFirestore.instance
-          .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
-          .collection('periodLogs').doc(selectedDate.toString()).set({
-        'cycle start date': startDateVal,
-        'period end date': periodEnd,
-        'cycle end date': endDateVal,
-        'fertile start date': fertileStart,
-        'fertile end date': fertileEnd,
-        'ovulation date': ovulationDate
-      });
-
-      if (mounted) {
-        setState(() {
-          start = false;
-        });
-      }
-    }
-  }
-
-  Future updateCycleHistory(DateTime selectedDate) async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user != null) {
-      // Update status
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('cycle').doc('cycle info').update({
-        'status': true
-      });
-
-      // Get setting data for smart prediction
-      DocumentSnapshot userSetting = await FirebaseFirestore.instance
-          .collection('users').doc(user.uid).collection('cycle').doc('cycle info').get();
-      bool smartPrediction = userSetting['smart prediction'];
-
-      // Get the uid of the latest cycle history
-      final CollectionReference history = FirebaseFirestore.instance
-          .collection('users').doc(user.uid).collection('cycle').doc('cycle info').collection('periodLogs');
-      final QuerySnapshot latest = await history
-          .orderBy('cycle start date', descending: true).limit(1).get();
-      String latestId = latest.docs.first.id;
-
-      // Get the document of the latest cycle
-      DocumentSnapshot cycleHistoryData = await FirebaseFirestore.instance
-          .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
-          .collection('periodLogs').doc(latestId).get();
-
-      if (smartPrediction) {
-        // Compute current period length
-        DateTime periodStart = (cycleHistoryData['cycle start date'] as Timestamp).toDate();
-        DateTime periodEnd = selectedDate;
-        Duration currentPeriodLength =
-            (periodEnd.difference(periodStart)) + const Duration(days: 1);
-
-        // Update the current cycle period length
-        await FirebaseFirestore.instance
-            .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
-            .collection('periodLogs').doc(latestId).update({
-          'period length': currentPeriodLength.inDays
-        });
-
-        // Get the list of period lengths
-        QuerySnapshot allData = await history.get();
-        List<int> cycleLengths = allData.docs
-            .map((doc) => (doc.get('period length') as int)).toList();
-        int sumOfPeriodLength = 0;
-        int numOfPeriodLength = cycleLengths.length;
-        for (int len in cycleLengths) {
-          sumOfPeriodLength += len;
-        }
-        int average = (sumOfPeriodLength / numOfPeriodLength).ceil();
-
-        // Update period length in the database
-        await FirebaseFirestore.instance
-            .collection('users').doc(user.uid).collection('cycle').doc('cycle info').update({
-          'period length': average
-        });
-      }
-
-      // Update end period date in the database
-      await history.doc(latestId).update({
-        'period end date': selectedDate,
-      });
-
-      if (mounted) {
-        setState(() {
-          start = true;
-        });
-      }
-    }
-  }
-
-  Future<(List<DateTime>, List<DateTime>, List<DateTime>, List<DateTime>, List<DateTime>)>
-  getCycleData() async {
-    final user = FirebaseAuth.instance.currentUser;
-    CollectionReference history = FirebaseFirestore.instance
-        .collection('users').doc(user!.uid).collection('cycle').doc('cycle info').collection('periodLogs');
-    QuerySnapshot allData = await history.get();
-
-    List<DateTime> startDateList = allData.docs
-        .map((doc) => (doc.get('cycle start date') as Timestamp).toDate()).toList();
-    List<DateTime> endDateList = allData.docs
-        .map((doc) => (doc.get('period end date') as Timestamp).toDate()).toList();
-    List<DateTime> startFertileList = allData.docs
-        .map((doc) => (doc.get('fertile start date') as Timestamp).toDate()).toList();
-    List<DateTime> endFertileList = allData.docs
-        .map((doc) => (doc.get('fertile end date') as Timestamp).toDate()).toList();
-    List<DateTime> ovulationList = allData.docs
-        .map((doc) => (doc.get('ovulation date') as Timestamp).toDate()).toList();
-
-    return (startDateList, endDateList, startFertileList, endFertileList, ovulationList);
-  }
-
-  void _refreshData() async {
-    setState(() => _loading = true);
-    final data = await getCycleData();
-    if (mounted) {
-      setState(() {
-        startDate    = data.$1;
-        endDate      = data.$2;
-        startFertile = data.$3;
-        endFertile   = data.$4;
-        ovulation    = data.$5;
-        _loading     = false;
-      });
-    }
+  @override
+  void dispose() {
+    _infoSub?.cancel();
+    _cyclesSub?.cancel();
+    super.dispose();
   }
 
   // ──────────────────────────────────────────────────────────
-  // DAILY LOG HELPERS
+  // DATA
   // ──────────────────────────────────────────────────────────
 
-  void _getLogText(DateTime selectedDate) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+  static List<String> _list(Map<String, dynamic>? log, String key) =>
+      (log?[key] as List?)?.cast<String>() ?? const [];
 
-    final date = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
-    final log = await FirebaseFirestore.instance
-        .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
-        .collection('symptomsLogs')
-        .doc(date.toString())
-        .get();
-
-    if (!mounted) return;
-    if (!log.exists) {
-      setState(() => _logText = '');
-      return;
+  /// One read per selected date: fills the note, the log summary and the
+  /// cached log used by the Reason/Remedy sheets.
+  Future<void> _loadLogForDate(DateTime date) async {
+    Map<String, dynamic>? log;
+    try {
+      log = await _repo.getSymptomLog(date);
+    } catch (e) {
+      debugPrint('Failed to load log: $e');
     }
+    // Ignore stale responses if the user already tapped another day.
+    if (!mounted || !DateUtils.isSameDay(date, _selectedDate)) return;
+    setState(() {
+      _selectedLog = log;
+      _noteText    = (log?['notes'] as String?) ?? '';
+      _logText     = _buildLogText(log);
+    });
+  }
 
-    final symptoms  = (log['physical symptoms'] as List?)?.cast<String>() ?? [];
-    final moods     = (log['mood']              as List?)?.cast<String>() ?? [];
-    final discharge = (log['discharge']         as List?)?.cast<String>() ?? [];
-
-    const symptomIcon = {
-      "Cramps": "🤕", "Headaches": "🤯", "Nausea": "🤢", "Bloating": "😖",
-      "Breast Tenderness": "💢", "Breakouts": "😬", "Cravings": "🍫",
-      "Stress": "😫", "Constipation": "🚫", "Diarrhea": "💩",
-    };
-    const moodIcon = {
-      "Mood Swing": "🔄", "Irritable": "😠", "Sad": "😢", "Anxious": "😰",
-      "Confident": "😎", "Happy": "😊", "Impatient": "😤", "Inspired": "✨",
-    };
+  String _buildLogText(Map<String, dynamic>? log) {
+    final symptoms  = _list(log, 'physical symptoms');
+    final moods     = _list(log, 'mood');
+    final discharge = _list(log, 'discharge');
 
     final parts = <String>[];
     if (symptoms.isNotEmpty) {
       parts.add(
-        'Symptoms\n${symptoms.map((s) => '${symptomIcon[s] ?? ''} $s').join('  ·  ')}',
+        'Symptoms\n${symptoms.map((s) => '${_symptomIcon[s] ?? ''} $s').join('  ·  ')}',
       );
     }
     if (moods.isNotEmpty) {
       parts.add(
-        'Mood\n${moods.map((m) => '${moodIcon[m] ?? ''} $m').join('  ·  ')}',
+        'Mood\n${moods.map((m) => '${_moodIcon[m] ?? ''} $m').join('  ·  ')}',
       );
     }
     if (discharge.isNotEmpty) {
-      parts.add(
-        'Discharge\n${discharge.join('  ·  ')}',
-      );
+      parts.add('Discharge\n${discharge.join('  ·  ')}');
     }
-
-    setState(() => _logText = parts.join('\n\n'));
+    return parts.join('\n\n');
   }
 
+  Future<void> saveNotes(DateTime selectedDate) async {
+    try {
+      await _repo.saveNote(selectedDate, _noteText);
+      _selectedLog = {...?_selectedLog, 'notes': _noteText.trim()};
+    } catch (e) {
+      debugPrint('Failed to save note: $e');
+    }
+  }
+
+  Future<void> addCycleHistory(DateTime selectedDate) =>
+      _repo.startPeriod(selectedDate);
+
+  Future<void> updateCycleHistory(DateTime selectedDate) =>
+      _repo.endPeriod(selectedDate);
+
+  // ──────────────────────────────────────────────────────────
   // ──────────────────────────────────────────────────────────
   // BOTTOM SHEETS
   // ──────────────────────────────────────────────────────────
@@ -408,9 +192,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   controller: scrollController,
                   child: dailyLog(
                     selectedDate: date,
-                    onSaved: (summary) {
-                      if (mounted) setState(() => _logText = summary);
-                    },
+                    onSaved: (_) => _loadLogForDate(date),
                   ),
                 ),
               ),
@@ -421,17 +203,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  void _openPossibleReasons() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    final date = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
-    final doc = await FirebaseFirestore.instance
-        .collection('user').doc(user.uid).collection('cycle').doc('cycle info')
-        .collection('symptomsLogs').doc(date.toString()).get();
-    final symptoms  = (doc['physical symptoms'] as List?)?.cast<String>() ?? [];
-    final moods     = (doc['mood']              as List?)?.cast<String>() ?? [];
-    final discharge = (doc['discharge']         as List?)?.cast<String>() ?? [];
-    if (!mounted) return;
+  void _openPossibleReasons() {
+    final symptoms  = _list(_selectedLog, 'physical symptoms');
+    final moods     = _list(_selectedLog, 'mood');
+    final discharge = _list(_selectedLog, 'discharge');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -461,17 +236,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  void _openRemedySuggestions() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    final date = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
-    final doc = await FirebaseFirestore.instance
-        .collection('cycle').doc(user.uid)
-        .collection('logs').doc(date.toString()).get();
-    final symptoms  = (doc['physical symptoms'] as List?)?.cast<String>() ?? [];
-    final moods     = (doc['mood']              as List?)?.cast<String>() ?? [];
-    final discharge = (doc['discharge']         as List?)?.cast<String>() ?? [];
-    if (!mounted) return;
+  void _openRemedySuggestions() {
+    final symptoms  = _list(_selectedLog, 'physical symptoms');
+    final moods     = _list(_selectedLog, 'mood');
+    final discharge = _list(_selectedLog, 'discharge');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -621,12 +389,26 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
 
     if (confirm == true) {
-      if (start) {
-        await addCycleHistory(_selectedDate);
-      } else {
-        await updateCycleHistory(_selectedDate);
+      try {
+        if (start) {
+          await addCycleHistory(_selectedDate);
+          if (mounted) setState(() => start = false);
+        } else {
+          await updateCycleHistory(_selectedDate);
+          if (mounted) setState(() => start = true);
+        }
+        // No manual refresh needed: the periodLogs listener updates the grid.
+      } catch (e) {
+        debugPrint('Failed to save cycle: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Couldn't save. Please check your connection."),
+              backgroundColor: Color(0xFFB56A7E),
+            ),
+          );
+        }
       }
-      _refreshData();
     }
   }
 
@@ -962,21 +744,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
     bool isFertile   = false;
     bool isOvulation = false;
 
-    if (startDate != null && endDate != null &&
-        startFertile != null && endFertile != null && ovulation != null) {
-      for (int i = 0; i < startDate!.length; i++) {
-        if ((thisDay.isAfter(startDate![i]) || DateUtils.isSameDay(thisDay, startDate![i])) &&
-            (thisDay.isBefore(endDate![i])  || DateUtils.isSameDay(thisDay, endDate![i]))) {
-          isPeriod = true;
-        }
-        if ((thisDay.isAfter(startFertile![i]) || DateUtils.isSameDay(thisDay, startFertile![i])) &&
-            (thisDay.isBefore(endFertile![i])  || DateUtils.isSameDay(thisDay, endFertile![i]))) {
-          isFertile = true;
-        }
-        if (DateUtils.isSameDay(thisDay, ovulation![i])) {
-          isOvulation = true;
-        }
-      }
+    bool within(DateTime from, DateTime to) =>
+        (thisDay.isAfter(from) || DateUtils.isSameDay(thisDay, from)) &&
+        (thisDay.isBefore(to)  || DateUtils.isSameDay(thisDay, to));
+
+    for (final c in _cycles) {
+      if (within(c.cycleStart, c.periodEnd))     isPeriod = true;
+      if (within(c.fertileStart, c.fertileEnd))  isFertile = true;
+      if (DateUtils.isSameDay(thisDay, c.ovulation)) isOvulation = true;
     }
 
     Color bgColor;
@@ -996,15 +771,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     return GestureDetector(
       onTap: () {
-        getNotes(thisDay);
-        _getLogText(thisDay);
         setState(() {
           _selectedDate = thisDay;
           _isValidDay   = !thisDay.isAfter(_today);
         });
+        _loadLogForDate(thisDay);
       },
       onDoubleTap: () {
         setState(() => _selectedDate = thisDay);
+        _loadLogForDate(thisDay);
         _openDailyLog(thisDay);
       },
       child: Center(

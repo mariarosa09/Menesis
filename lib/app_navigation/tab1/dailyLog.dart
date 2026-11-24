@@ -1,6 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '/services/cycle_repository.dart';
 
 class dailyLog extends StatefulWidget {
   final DateTime selectedDate;
@@ -73,10 +72,7 @@ class _dailyLogState extends State<dailyLog> {
   @override
   void initState() {
     super.initState();
-    getSymptoms();
-    getMood();
-    getDischarge();
-    getNotes();
+    _loadLog();
   }
 
   @override
@@ -115,138 +111,39 @@ class _dailyLogState extends State<dailyLog> {
     return parts.join('\n\n');
   }
 
-  void saveLog() async {
-    final user = FirebaseAuth.instance.currentUser;
-    final date = DateTime(
-      widget.selectedDate.year,
-      widget.selectedDate.month,
-      widget.selectedDate.day,
-    );
-
-    if (user != null) {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('cycle')
-          .doc('cycle info')
-          .collection('symptomsLogs')
-          .doc(date.toString())
-          .set({
-        'log date':          date,
+  Future<void> saveLog() async {
+    try {
+      await CycleRepository.instance.saveSymptomLog(widget.selectedDate, {
+        'log date':          DateUtils.dateOnly(widget.selectedDate),
         'physical symptoms': selectedSymptoms.toList(),
         'mood':              selectedMoods.toList(),
         'discharge':         selectedDischarge.toList(),
         'notes':             notesController.text.trim(),
-      }, SetOptions(merge: true));
-
+      });
       widget.onSaved?.call(_buildLogSummary());
+    } catch (e) {
+      debugPrint('Failed to save log: $e');
     }
   }
 
-  void getSymptoms() async {
-    final user = FirebaseAuth.instance.currentUser;
-    final date = DateTime(
-      widget.selectedDate.year,
-      widget.selectedDate.month,
-      widget.selectedDate.day,
-    );
-
-    if (user != null) {
-      final log = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('cycle')
-          .doc('cycle info')
-          .collection('symptomsLogs')
-          .doc(date.toString())
-          .get();
-      if (mounted) {
-        setState(() {
-          selectedSymptoms = log.exists
-              ? (log['physical symptoms'] as List?)?.cast<String>().toSet() ?? {}
-              : {};
-        });
-      }
+  /// Loads the whole log for the selected day with a single read
+  /// (previously one read each for symptoms, mood, discharge and notes).
+  Future<void> _loadLog() async {
+    Map<String, dynamic>? log;
+    try {
+      log = await CycleRepository.instance.getSymptomLog(widget.selectedDate);
+    } catch (e) {
+      debugPrint('Failed to load log: $e');
     }
-  }
-
-  void getMood() async {
-    final user = FirebaseAuth.instance.currentUser;
-    final date = DateTime(
-      widget.selectedDate.year,
-      widget.selectedDate.month,
-      widget.selectedDate.day,
-    );
-
-    if (user != null) {
-      final log = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('cycle')
-          .doc('cycle info')
-          .collection('symptomsLogs')
-          .doc(date.toString())
-          .get();
-      if (mounted) {
-        setState(() {
-          selectedMoods = log.exists
-              ? (log['mood'] as List?)?.cast<String>().toSet() ?? {}
-              : {};
-        });
-      }
-    }
-  }
-
-  void getDischarge() async {
-    final user = FirebaseAuth.instance.currentUser;
-    final date = DateTime(
-      widget.selectedDate.year,
-      widget.selectedDate.month,
-      widget.selectedDate.day,
-    );
-
-    if (user != null) {
-      final log = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('cycle')
-          .doc('cycle info')
-          .collection('symptomsLogs')
-          .doc(date.toString())
-          .get();
-      if (mounted) {
-        setState(() {
-          selectedDischarge = log.exists
-              ? (log['discharge'] as List?)?.cast<String>().toSet() ?? {}
-              : {};
-        });
-      }
-    }
-  }
-
-  void getNotes() async {
-    final user = FirebaseAuth.instance.currentUser;
-    final date = DateTime(
-      widget.selectedDate.year,
-      widget.selectedDate.month,
-      widget.selectedDate.day,
-    );
-
-    if (user != null) {
-      final log = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('cycle')
-          .doc('cycle info')
-          .collection('symptomsLogs')
-          .doc(date.toString())
-          .get();
-      if (mounted) {
-        setState(() {
-          notesController.text = log.exists ? (log['notes'] ?? '') : '';
-        });
-      }
-    }
+    if (!mounted) return;
+    Set<String> set(String key) =>
+        (log?[key] as List?)?.cast<String>().toSet() ?? {};
+    setState(() {
+      selectedSymptoms  = set('physical symptoms');
+      selectedMoods     = set('mood');
+      selectedDischarge = set('discharge');
+      notesController.text = (log?['notes'] as String?) ?? '';
+    });
   }
 
   @override

@@ -5,6 +5,7 @@ import '/app_navigation/tab3/settings/changePass.dart';
 import '/app_navigation/tab3/settings/changeEmail.dart';
 import '/registration/initialLength.dart';
 import '/registration/main.dart';
+import '/services/notification_service.dart';
 
 /// ============================================================
 /// DataAccountScreen
@@ -227,16 +228,15 @@ class DataAccountScreen extends StatelessWidget {
               'smart prediction': true,
             });
 
-            await FirebaseFirestore.instance
-                .collection('users')
-                .doc(user.uid)
-                .collection('setting')
-                .doc('notification')
-                .set({
-              'daily log': true,
-              'fertile window': true,
-              'period approaching': true,
-            });
+            await NotificationService.instance.savePrefs(
+              user.uid,
+              const NotificationPrefs(
+                dailyLog: true,
+                fertileWindow: true,
+                periodApproaching: true,
+              ),
+            );
+            await NotificationService.instance.cancelAll();
 
             if (context.mounted) {
               Navigator.pushAndRemoveUntil(
@@ -297,6 +297,7 @@ class DataAccountScreen extends StatelessWidget {
             }, SetOptions(merge: true));
 
             // Sign out so the user can't keep using the app.
+            await NotificationService.instance.cancelAll();
             await FirebaseAuth.instance.signOut();
 
             if (context.mounted) {

@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:convex_bottom_bar/convex_bottom_bar.dart';
 import 'package:menesis_app/app_navigation/tab1/calendar.dart';
 import 'package:menesis_app/app_navigation/tab3/profile/profile.dart';
+import 'package:menesis_app/services/cycle_repository.dart';
+import 'package:menesis_app/services/notification_service.dart';
 
 void main() {
   runApp(const MyApp());
@@ -72,10 +74,16 @@ class _HomePageState extends State<HomePage>
     with TickerProviderStateMixin {
 
   // ── Firestore subscriptions ──────────────────
-  StreamSubscription<DocumentSnapshot>? _userSub;
-  StreamSubscription<DocumentSnapshot>? _userStat;
-  StreamSubscription<DocumentSnapshot>? _userNextCycle;
-  StreamSubscription? _history;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userSub;
+  StreamSubscription<CycleInfo?>? _cycleInfoSub;
+  StreamSubscription<CycleRecord?>? _latestSub;
+
+  // ── Cached Firestore data ────────────────────
+  CycleInfo? _cycleInfo;
+  CycleRecord? _latestCycle;
+  bool _cycleInfoLoaded = false;
+  bool _latestLoaded = false;
+  Timer? _notifDebounce;
 
   // ── Loading flag ─────────────────────────────
   bool _isLoading = true;
@@ -128,12 +136,17 @@ class _HomePageState extends State<HomePage>
       duration: const Duration(milliseconds: 2000),
     );
 
-    // Refresh time every minute
+    // Refresh time every minute (and the day-based values with it,
+    // so countdowns roll over at midnight without a new Firestore read).
     _timer = Timer.periodic(const Duration(minutes: 1), (_) {
-      setState(() => _now = DateTime.now().toLocal());
+      setState(() {
+        _now = DateTime.now().toLocal();
+        _recomputeCycleState();
+      });
     });
 
-    _loadAllData();
+    _subscribeToData();
+    NotificationService.instance.requestPermission();
   }
 
   // ─────────────────────────────────────────────
@@ -143,10 +156,10 @@ class _HomePageState extends State<HomePage>
   void dispose() {
     _timer.cancel();
     _shimmerAnim.dispose();
+    _notifDebounce?.cancel();
     _userSub?.cancel();
-    _userStat?.cancel();
-    _userNextCycle?.cancel();
-    _history?.cancel();
+    _cycleInfoSub?.cancel();
+    _latestSub?.cancel();
     super.dispose();
   }
 
@@ -250,518 +263,144 @@ class _HomePageState extends State<HomePage>
 
   // ─────────────────────────────────────────────
   // DATA LOADING
+  //
+  // Exactly three Firestore listeners for the whole home screen:
+  //   1. users/{uid}                       → greeting name
+  //   2. users/{uid}/cycle/cycle info      → status, emptyRecord, lengths
+  //   3. latest periodLogs document        → cycle dates
+  // Every derived value (phase, ring %, countdowns) is computed locally in
+  // _recomputeCycleState(), so no listener ever creates another listener.
   // ─────────────────────────────────────────────
-  Future<void> _loadAllData() async {
-    try {
-      await Future.wait([
-        getUserName(),
-        nextCycleDays(),
-        currentCycleDay(),
-        modifyCycleDisplay(),
-        getCycle(),
-        getLogStatus(),
-      ]);
-    } catch (e) {
-      debugPrint("Error loading data: $e");
+  void _subscribeToData() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _isLoading = false;
+      return;
     }
+    final repo = CycleRepository.instance;
+
+    _userSub = repo.userDoc(user.uid).snapshots().listen((snap) {
+      final data = snap.data();
+      if (data == null || !mounted) return;
+      final String firstName = data['first name'] ?? "";
+      final String username = data['username'] ?? "User";
+      setState(() => name = firstName.isEmpty ? username : firstName);
+    }, onError: (e) => debugPrint("User listener error: $e"));
+
+    _cycleInfoSub = repo.cycleInfoStream().listen((info) {
+      _cycleInfo = info;
+      _cycleInfoLoaded = true;
+      _onCycleDataChanged();
+    }, onError: _onListenerError);
+
+    _latestSub = repo.latestCycleStream().listen((latest) {
+      _latestCycle = latest;
+      _latestLoaded = true;
+      _onCycleDataChanged();
+    }, onError: _onListenerError);
+  }
+
+  void _onListenerError(Object e) {
+    debugPrint("Cycle listener error: $e");
     if (mounted) setState(() => _isLoading = false);
   }
 
-  Future<void> getUserName() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      _userSub = FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .snapshots()
-          .listen((DocumentSnapshot userInfo) {
-        final data = userInfo.data() as Map<String, dynamic>?;
-        if (data != null && mounted) {
-          final firstName = data['first name'] ?? "";
-          final username = data['username'] ?? "User";
-          setState(() {
-            name = firstName.isEmpty ? username : firstName;
-          });
-        }
-      });
-    }
+  void _onCycleDataChanged() {
+    if (!mounted) return;
+    setState(() {
+      _recomputeCycleState();
+      final info = _cycleInfo;
+      if (_cycleInfoLoaded &&
+          (info == null || info.emptyRecord || _latestLoaded)) {
+        _isLoading = false;
+      }
+    });
+    if (_cycleInfoLoaded && _latestLoaded) _scheduleNotificationSync();
   }
 
-  Future<void> nextCycleDays() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      _userNextCycle = FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('cycle')
-          .doc('cycle info')
-          .snapshots()
-          .listen((DocumentSnapshot userInfo) {
-        final data = userInfo.data() as Map<String, dynamic>?;
-        if (data != null && mounted) {
-          if (data['emptyRecord'] as bool) {
-            setState(() => daysUntilNextCycle = 0);
-          } else {
-            _history = FirebaseFirestore.instance
-                .collection('users')
-                .doc(user.uid)
-                .collection('cycle')
-                .doc('cycle info')
-                .collection('periodLogs')
-                .orderBy('cycle start date', descending: true)
-                .limit(1)
-                .snapshots()
-                .listen((QuerySnapshot latest) {
-              if (latest.docs.isNotEmpty && mounted) {
-                final cycle =
-                latest.docs.first.data() as Map<String, dynamic>;
-                final cycleEnd =
-                (cycle['cycle end date'] as Timestamp).toDate();
-                final daysLeft =
-                    (cycleEnd.difference(_now)) + const Duration(days: 1);
-                setState(() => daysUntilNextCycle = daysLeft.inDays);
-              }
-            });
-          }
-        }
-      });
-    }
+  /// Debounced so a single start/end action (which updates both
+  /// `cycle info` and the latest log) reschedules reminders only once.
+  void _scheduleNotificationSync() {
+    _notifDebounce?.cancel();
+    _notifDebounce = Timer(const Duration(milliseconds: 600), () {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+      NotificationService.instance.rescheduleAll(
+        uid: uid,
+        info: _cycleInfo,
+        latest: _latestCycle,
+        latestKnown: true,
+      );
+    });
   }
 
-  Future<void> currentCycleDay() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      _userNextCycle = FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('cycle')
-          .doc('cycle info')
-          .snapshots()
-          .listen((DocumentSnapshot userInfo) {
-        final data = userInfo.data() as Map<String, dynamic>?;
-        if (data != null && mounted) {
-          if (data['emptyRecord'] as bool) {
-            setState(() => daysInCurrentCycle = 0);
-          } else {
-            _history = FirebaseFirestore.instance
-                .collection('users')
-                .doc(user.uid)
-                .collection('cycle')
-                .doc('cycle info')
-                .collection('periodLogs')
-                .orderBy('cycle start date', descending: true)
-                .limit(1)
-                .snapshots()
-                .listen((QuerySnapshot latest) {
-              if (latest.docs.isNotEmpty && mounted) {
-                final cycle =
-                latest.docs.first.data() as Map<String, dynamic>;
-                final periodStart =
-                (cycle['cycle start date'] as Timestamp).toDate();
-                // +1 so the first day of the period is Day 1 (not Day 0)
-                final dayInCycle = (_now.difference(periodStart)) +
-                    const Duration(days: 1);
-                setState(() => daysInCurrentCycle = dayInCycle.inDays);
-              }
-            });
-          }
-        }
-      });
+  static bool _onOrAfter(DateTime a, DateTime b) =>
+      a.isAfter(b) || DateUtils.isSameDay(a, b);
+  static bool _onOrBefore(DateTime a, DateTime b) =>
+      a.isBefore(b) || DateUtils.isSameDay(a, b);
+
+  /// Derives every cycle-related display value from the cached snapshots.
+  /// Must be called inside setState.
+  void _recomputeCycleState() {
+    final info = _cycleInfo;
+    if (info == null) return;
+
+    start = info.status;
+
+    if (info.emptyRecord) {
+      daysUntilNextCycle = 0;
+      daysInCurrentCycle = 0;
+      percent = 0.0;
+      colorCycle = const Color(0xFFFFFFFF);
+      cyclePhase = "Empty Record";
+      cyclePhase2 = null;
+      return;
     }
-  }
 
-  Future<void> modifyCycleDisplay() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      _userNextCycle = FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('cycle')
-          .doc('cycle info')
-          .snapshots()
-          .listen((DocumentSnapshot userInfo) {
-        final data = userInfo.data() as Map<String, dynamic>?;
-        if (data != null && mounted) {
-          if (data['emptyRecord'] as bool) {
-            setState(() {
-              percent = 0.0;
-              colorCycle = const Color(0xFFFFFFFF);
-            });
-          } else {
-            _history = FirebaseFirestore.instance
-                .collection('users')
-                .doc(user.uid)
-                .collection('cycle')
-                .doc('cycle info')
-                .collection('periodLogs')
-                .orderBy('cycle start date', descending: true)
-                .limit(1)
-                .snapshots()
-                .listen((QuerySnapshot latest) {
-              if (latest.docs.isNotEmpty && mounted) {
-                final cycle =
-                latest.docs.first.data() as Map<String, dynamic>;
-                final periodStart =
-                (cycle['cycle start date'] as Timestamp).toDate();
-                final periodEnd =
-                (cycle['period end date'] as Timestamp).toDate();
-                final fertileStart =
-                (cycle['fertile start date'] as Timestamp).toDate();
-                final fertileEnd =
-                (cycle['fertile end date'] as Timestamp).toDate();
-                final ovulation =
-                (cycle['ovulation date'] as Timestamp).toDate();
+    final cycle = _latestCycle;
+    if (cycle == null) return;
 
-                final dayInCycle = (_now.difference(periodStart)) +
-                    const Duration(days: 1);
-                final percentage =
-                    dayInCycle.inDays / data['cycle length'];
+    daysUntilNextCycle =
+        (cycle.cycleEnd.difference(_now) + const Duration(days: 1)).inDays;
+    // +1 so the first day of the period is Day 1 (not Day 0)
+    final dayInCycle =
+        (_now.difference(cycle.cycleStart) + const Duration(days: 1)).inDays;
+    daysInCurrentCycle = dayInCycle;
+    percent = dayInCycle / info.cycleLength;
 
-                Color cycleColoring;
-                if ((_now.isAfter(periodStart) ||
-                    DateUtils.isSameDay(_now, periodStart)) &&
-                    (_now.isBefore(periodEnd) ||
-                        DateUtils.isSameDay(_now, periodEnd))) {
-                  cycleColoring = const Color(0xFFE57373);
-                } else if (DateUtils.isSameDay(_now, ovulation)) {
-                  cycleColoring = const Color(0xFF6ED6A5);
-                } else if ((_now.isAfter(fertileStart) ||
-                    DateUtils.isSameDay(_now, fertileStart)) &&
-                    (_now.isBefore(fertileEnd) ||
-                        DateUtils.isSameDay(_now, fertileEnd))) {
-                  cycleColoring = const Color(0xFFFFD54F);
-                } else {
-                  cycleColoring = const Color(0xFF9C7FBF);
-                }
-
-                if (mounted) {
-                  setState(() {
-                    percent = percentage;
-                    colorCycle = cycleColoring;
-                  });
-                }
-              }
-            });
-          }
-        }
-      });
+    // ── Primary phase ───────────────────────────
+    if (_onOrAfter(_now, cycle.cycleStart) &&
+        _onOrBefore(_now, cycle.periodEnd)) {
+      cyclePhase = "Menstruation";
+      colorCycle = const Color(0xFFE57373);
+    } else if (DateUtils.isSameDay(_now, cycle.ovulation)) {
+      cyclePhase = "Ovulation";
+      colorCycle = const Color(0xFF6ED6A5);
+    } else if (_onOrAfter(_now, cycle.fertileStart) &&
+        _onOrBefore(_now, cycle.fertileEnd)) {
+      cyclePhase = "Fertile";
+      colorCycle = const Color(0xFFFFD54F);
+    } else {
+      cyclePhase = "Luteal";
+      colorCycle = const Color(0xFF9C7FBF);
     }
-  }
 
-  // ─────────────────────────────────────────────
-  // GET CYCLE
-  // Determines both the primary phase and the
-  // concurrent secondary phase (Follicular overlay).
-  //
-  // Primary phases (outer ring):
-  //   Menstruation → Fertile → Ovulation → Luteal
-  //
-  // Follicular (inner overlay arc):
-  //   Runs concurrently from period start → fertileEnd (inclusive).
-  //   fertileEnd is the day BEFORE ovulation.
-  //
-  //   During Menstruation: Menstruation + Follicular
-  //   During Fertile:      Fertile + Follicular
-  //   During Ovulation:    Ovulation only (Follicular already ended)
-  //   During Luteal:       Luteal only
-  // ─────────────────────────────────────────────
-  Future<void> getCycle() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      _userNextCycle = FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('cycle')
-          .doc('cycle info')
-          .snapshots()
-          .listen((DocumentSnapshot userInfo) {
-        final data = userInfo.data() as Map<String, dynamic>?;
-        if (data != null && mounted) {
-          if (data['emptyRecord'] as bool) {
-            setState(() {
-              cyclePhase = "Empty Record";
-              cyclePhase2 = null;
-            });
-          } else {
-            _history = FirebaseFirestore.instance
-                .collection('users')
-                .doc(user.uid)
-                .collection('cycle')
-                .doc('cycle info')
-                .collection('periodLogs')
-                .orderBy('cycle start date', descending: true)
-                .limit(1)
-                .snapshots()
-                .listen((QuerySnapshot latest) {
-              if (latest.docs.isNotEmpty && mounted) {
-                final cycle =
-                latest.docs.first.data() as Map<String, dynamic>;
-                final periodStart =
-                (cycle['cycle start date'] as Timestamp).toDate();
-                final periodEnd =
-                (cycle['period end date'] as Timestamp).toDate();
-                final fertileStart =
-                (cycle['fertile start date'] as Timestamp).toDate();
-                final fertileEnd =
-                (cycle['fertile end date'] as Timestamp).toDate();
-                final ovulation =
-                (cycle['ovulation date'] as Timestamp).toDate();
-
-                // ── Determine primary phase ─────────────
-                String phase;
-                if ((_now.isAfter(periodStart) ||
-                    DateUtils.isSameDay(_now, periodStart)) &&
-                    (_now.isBefore(periodEnd) ||
-                        DateUtils.isSameDay(_now, periodEnd))) {
-                  phase = "Menstruation";
-                } else if (DateUtils.isSameDay(_now, ovulation)) {
-                  phase = "Ovulation";
-                } else if ((_now.isAfter(fertileStart) ||
-                    DateUtils.isSameDay(_now, fertileStart)) &&
-                    (_now.isBefore(fertileEnd) ||
-                        DateUtils.isSameDay(_now, fertileEnd))) {
-                  phase = "Fertile";
-                } else {
-                  phase = "Luteal";
-                }
-
-                // ── Determine secondary phase ───────────
-                // Follicular runs from period start through fertileEnd
-                // (the day BEFORE ovulation, inclusive on both ends).
-                // This aligns follicular end with fertileEnd in Firestore.
-                String? phase2;
-                final isInFollicularWindow =
-                    (_now.isAfter(periodStart) ||
-                        DateUtils.isSameDay(_now, periodStart)) &&
-                        (_now.isBefore(fertileEnd) ||
-                            DateUtils.isSameDay(_now, fertileEnd));
-
-                if (isInFollicularWindow) {
-                  phase2 = "Follicular";
-                }
-
-                if (mounted) {
-                  setState(() {
-                    cyclePhase = phase;
-                    cyclePhase2 = phase2;
-                  });
-                }
-              }
-            });
-          }
-        }
-      });
-    }
-  }
-
-  Future<void> getLogStatus() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      _userStat = FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('cycle')
-          .doc('cycle info')
-          .snapshots()
-          .listen((DocumentSnapshot userInfo) {
-        final data = userInfo.data() as Map<String, dynamic>?;
-        if (data != null && mounted) {
-          setState(() => start = data['status'] ?? true);
-        }
-      });
-    }
+    // ── Secondary phase ─────────────────────────
+    // Follicular runs from period start through fertileEnd
+    // (the day BEFORE ovulation, inclusive on both ends).
+    final isInFollicularWindow = _onOrAfter(_now, cycle.cycleStart) &&
+        _onOrBefore(_now, cycle.fertileEnd);
+    cyclePhase2 = isInFollicularWindow ? "Follicular" : null;
   }
 
   Future<void> addCycleHistory() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      final userData = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('cycle')
-          .doc('cycle info')
-          .get();
-      final bool first = userData['emptyRecord'];
-
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('cycle')
-          .doc('cycle info')
-          .update({'status': false, 'emptyRecord': false});
-
-      int cycleLength = userData['cycle length'];
-
-      final userSetting = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('cycle')
-          .doc('cycle info')
-          .get();
-      final bool smartPrediction = userSetting['smart prediction'];
-
-      if (smartPrediction && !first) {
-        final history = FirebaseFirestore.instance
-            .collection('users')
-          .doc(user.uid)
-          .collection('cycle')
-          .doc('cycle info')
-          .collection('periodLogs');
-        final latest =
-        await history.orderBy('cycle start date', descending: true).limit(1).get();
-        final latestId = latest.docs.first.id;
-
-        final userCycleHistory = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .collection('cycle')
-            .doc('cycle info')
-            .collection('periodLogs')
-            .doc(latestId)
-            .get();
-        final periodStart =
-        (userCycleHistory['cycle start date'] as Timestamp).toDate();
-        final previousCycleLength = _now.difference(periodStart);
-
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .collection('cycle')
-            .doc('cycle info')
-            .collection('periodLogs')
-            .doc(latestId)
-            .update({'cycle length': previousCycleLength.inDays});
-
-        final allData = await history.get();
-        final cycleLengths = allData.docs
-            .map((doc) =>
-        (doc.data() as Map<String, dynamic>)['cycle length'] as int? ??
-            cycleLength)
-            .toList();
-        int sumOfCycleLength = 0;
-        for (int len in cycleLengths) {
-          sumOfCycleLength += len;
-        }
-        final average = (sumOfCycleLength / cycleLengths.length).ceil();
-        cycleLength = average;
-
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .collection('cycle')
-            .doc('cycle info')
-            .update({'cycle length': average});
-
-        final fertileStart = periodStart
-            .add(Duration(days: previousCycleLength.inDays - 20));
-        final fertileEnd = fertileStart.add(const Duration(days: 6));
-        final ovulation = fertileEnd.subtract(const Duration(days: 1));
-
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .collection('cycle')
-            .doc('cycle info')
-            .collection('periodLogs')
-            .doc(latestId)
-            .update({
-          'fertile start date': fertileStart,
-          'fertile end date': fertileEnd,
-          'ovulation date': ovulation,
-        });
-      }
-
-      final int periodLength = userData['period length'];
-      final DateTime startDate = _now;
-      final DateTime endDate =
-      startDate.add(Duration(days: cycleLength - 1));
-      final DateTime periodEnd =
-      startDate.add(Duration(days: periodLength - 1));
-      final DateTime fertileStart =
-      startDate.add(Duration(days: cycleLength - 20));
-      final DateTime fertileEnd =
-      fertileStart.add(const Duration(days: 6));
-      final DateTime ovulation =
-      fertileEnd.subtract(const Duration(days: 1));
-
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('cycle')
-          .doc('cycle info')
-          .collection('periodLogs')
-          .doc(_now.toString())
-          .set({
-        'cycle start date': startDate,
-        'period end date': periodEnd,
-        'cycle end date': endDate,
-        'fertile start date': fertileStart,
-        'fertile end date': fertileEnd,
-        'ovulation date': ovulation,
-        'cycle length': cycleLength,
-        'period length': periodLength,
-      });
-
-      if (mounted) setState(() => start = false);
-    }
+    await CycleRepository.instance.startPeriod(_now);
+    if (mounted) setState(() => start = false);
   }
 
   Future<void> updateCycleHistory() async {
-    final user = FirebaseAuth.instance.currentUser;
-    final DateTime date = DateTime(_now.year, _now.month, _now.day);
-
-    if (user != null) {
-      await FirebaseFirestore.instance
-          .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
-          .update({'status': true});
-
-      final userSetting = await FirebaseFirestore.instance
-          .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
-          .get();
-      final bool smartPrediction = userSetting['smart prediction'];
-
-      final history = FirebaseFirestore.instance
-          .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
-          .collection('periodLogs');
-      final latest =
-      await history.orderBy('cycle start date', descending: true).limit(1).get();
-      final latestId = latest.docs.first.id;
-      final cycleHistoryData = await FirebaseFirestore.instance
-          .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
-          .collection('periodLogs')
-          .doc(latestId)
-          .get();
-
-      if (smartPrediction) {
-        final DateTime periodStart =
-        (cycleHistoryData['cycle start date'] as Timestamp).toDate();
-        final currentPeriodLength =
-            (date.difference(periodStart)) + const Duration(days: 1);
-
-        await FirebaseFirestore.instance
-            .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
-            .collection('periodLogs')
-            .doc(latestId)
-            .update({'period length': currentPeriodLength.inDays});
-
-        final allData = await history.get();
-        final periodLengths = allData.docs
-            .map((doc) => doc.get('period length') as int)
-            .toList();
-        int sumOfPeriodLength = 0;
-        for (int len in periodLengths) {
-          sumOfPeriodLength += len;
-        }
-        final average = (sumOfPeriodLength / periodLengths.length).ceil();
-
-        await FirebaseFirestore.instance
-            .collection('users').doc(user.uid).collection('cycle').doc('cycle info')
-            .update({'period length': average});
-      }
-
-      await history.doc(latestId).update({'period end date': date});
-      if (mounted) setState(() => start = true);
-    }
+    await CycleRepository.instance.endPeriod(_now);
+    if (mounted) setState(() => start = true);
   }
 
   // ─────────────────────────────────────────────
@@ -891,10 +530,22 @@ class _HomePageState extends State<HomePage>
     );
 
     if (confirmed == true && mounted) {
-      if (isStarting) {
-        await addCycleHistory();
-      } else {
-        await updateCycleHistory();
+      try {
+        if (isStarting) {
+          await addCycleHistory();
+        } else {
+          await updateCycleHistory();
+        }
+      } catch (e) {
+        debugPrint("Failed to save cycle: $e");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Couldn't save. Please check your connection."),
+              backgroundColor: Color(0xFFB56A7E),
+            ),
+          );
+        }
       }
     }
   }

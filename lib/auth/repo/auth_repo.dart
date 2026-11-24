@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:menesis_app/auth/entities/app_user.dart';
+import 'package:menesis_app/services/notification_service.dart';
 
 // ============================================================
 // AutoRepo — abstract contract
@@ -82,7 +83,11 @@ class FirebaseAuthRepo implements AutoRepo {
   // Logout
   // ----------------------------------------------------------
   @override
-  Future<void> logout() => _auth.signOut();
+  Future<void> logout() async {
+    // Don't keep showing one user's reminders after they sign out.
+    await NotificationService.instance.cancelAll();
+    await _auth.signOut();
+  }
 
   // ----------------------------------------------------------
   // Current user
