@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/images/logo.png" alt="Mēnesis logo" width="160">
+</p>
+
 # Mēnesis
 
 A Flutter menstrual-cycle tracker backed by Firebase. Users log their period,
