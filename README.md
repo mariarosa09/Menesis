@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/images/logo.png" alt="Mēnesis logo" width="160">
+  <img src="assets/images/menesheesh.png" alt="Mēnesis logo" width="160">
 </p>
 
 # Mēnesis
