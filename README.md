@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/images/menesheesh.png" alt="Mēnesis logo" width="160">
+  <img src="docs/logo_rounded.png" alt="Mēnesis logo" width="160">
 </p>
 
 # Mēnesis
@@ -26,6 +26,23 @@ The app does three things:
    history.
 3. **Explains.** For every symptom, mood or discharge type logged, it shows
    possible reasons and practical self-care remedies.
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/splash.png" alt="Splash screen" width="200">
+  <img src="docs/screenshots/setup.png" alt="Tell us about you" width="200">
+  <img src="docs/screenshots/home.png" alt="Home" width="200">
+</p>
+<p align="center">
+  <img src="docs/screenshots/calendar.png" alt="Calendar" width="200">
+  <img src="docs/screenshots/daily_log.png" alt="Daily log" width="200">
+  <img src="docs/screenshots/remedies.png" alt="Reasons and remedies" width="200">
+</p>
+<p align="center">
+  <img src="docs/screenshots/profile.png" alt="Profile" width="200">
+  <img src="docs/screenshots/notifications.png" alt="Notification settings" width="200">
+</p>
 
 ## How it works
 
