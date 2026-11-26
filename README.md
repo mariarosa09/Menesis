@@ -11,6 +11,29 @@ see their current cycle phase and predictions, record daily symptoms, moods
 and discharge, get possible reasons and remedy suggestions, and receive local
 reminders.
 
+## Table of contents
+
+- [About the app](#about-the-app)
+- [How it works](#how-it-works)
+  - [1. Getting started](#1-getting-started)
+  - [2. Main screens](#2-main-screens)
+  - [3. Daily log](#3-daily-log)
+  - [4. Reasons & remedies](#4-reasons--remedies)
+  - [5. Reminders](#5-reminders)
+- [Privacy](#privacy)
+- [Disclaimer](#disclaimer)
+- [Tech stack](#tech-stack)
+- [Getting started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Run](#run)
+  - [Using your own Firebase project](#using-your-own-firebase-project)
+- [Project structure](#project-structure)
+- [Firestore data model](#firestore-data-model)
+  - [Prediction rules](#prediction-rules)
+- [Data access](#data-access)
+- [Notifications](#notifications)
+- [Known limitations](#known-limitations)
+
 ## About the app
 
 Mēnesis is a personal cycle companion. It
