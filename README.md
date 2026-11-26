@@ -6,6 +6,19 @@
 
 <p align="center"><em>Track your cycle, know your body.</em></p>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/Platform-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Platform: Android">
+  <img src="https://img.shields.io/badge/Flutter-3.41-02569B?style=for-the-badge&logo=flutter&logoColor=white" alt="Flutter 3.41">
+  <img src="https://img.shields.io/badge/Dart-3.11-0175C2?style=for-the-badge&logo=dart&logoColor=white" alt="Dart 3.11">
+  <img src="https://img.shields.io/badge/Backend-Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black" alt="Backend: Firebase">
+</p>
+<p align="center">
+  <img src="https://img.shields.io/badge/Database-Cloud%20Firestore-FFA000?style=for-the-badge&logo=firebase&logoColor=white" alt="Database: Cloud Firestore">
+  <img src="https://img.shields.io/badge/Auth-Firebase%20Auth-FF6F00?style=for-the-badge&logo=firebase&logoColor=white" alt="Auth: Firebase Auth">
+  <img src="https://img.shields.io/badge/State-flutter__bloc-5E2B7E?style=for-the-badge" alt="State management: flutter_bloc">
+  <img src="https://img.shields.io/badge/Version-1.0.0-B56A7E?style=for-the-badge" alt="Version 1.0.0">
+</p>
+
 A Flutter menstrual-cycle tracker backed by Firebase. Users log their period,
 see their current cycle phase and predictions, record daily symptoms, moods
 and discharge, get possible reasons and remedy suggestions, and receive local
