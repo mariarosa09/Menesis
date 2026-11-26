@@ -2,7 +2,7 @@
   <img src="docs/logo_rounded.png" alt="Mēnesis logo" width="160">
 </p>
 
-# Mēnesis
+<h1 align="center">Mēnesis</h1>
 
 <p align="center"><em>Track your cycle, know your body.</em></p>
 
