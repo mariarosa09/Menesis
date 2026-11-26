@@ -4,27 +4,113 @@
 
 # Mēnesis
 
+<p align="center"><em>Track your cycle, know your body.</em></p>
+
 A Flutter menstrual-cycle tracker backed by Firebase. Users log their period,
 see their current cycle phase and predictions, record daily symptoms, moods
 and discharge, get possible reasons and remedy suggestions, and receive local
 reminders.
 
-## Features
+## About the app
 
-- **Home**: greeting, current cycle day, phase ring (Menstruation, Fertile,
-  Ovulation, Luteal, plus a Follicular overlay), countdown to the next period,
-  and a button to start or end a period.
-- **Calendar**: month view that colours period, fertile and ovulation days.
-  Tap a day to see its log and note. Double-tap a day to open the daily log.
-- **Daily log**: physical symptoms, mood, discharge type and notes for any past day.
-- **Reasons & remedies**: explanations and self-care suggestions based on what
-  was logged.
-- **Smart prediction** (optional): averages the user's real cycle and period
-  lengths to improve future predictions.
-- **Profile & settings**: edit profile, cycle and period length, notifications,
-  change email or password, clear data, delete account.
-- **Reminders**: period approaching, fertile window or ovulation day, and a
-  daily log reminder.
+Mēnesis is a personal cycle companion. It
+aims to help people understand their bodies, predict their cycle phases and
+take care of themselves, all in one private space.
+
+The app does three things:
+
+1. **Tracks.** It records when each period starts and ends, and what the user
+   felt each day.
+2. **Predicts.** It works out the next period, the fertile window and the
+   ovulation day. With Smart Prediction on, it learns from the user's own
+   history.
+3. **Explains.** For every symptom, mood or discharge type logged, it shows
+   possible reasons and practical self-care remedies.
+
+## How it works
+
+### 1. Getting started
+
+| Step | Screen | What happens |
+|------|--------|--------------|
+| 1 | Splash | Shows the logo. Signed-in users go straight to Home. |
+| 2 | Introduction | A short welcome to the app. |
+| 3 | Login / Create account | Sign up with email and password. A verification email is sent. Forgot your password? A reset link can be emailed. |
+| 4 | Tell us about you | Choose cycle type (Regular, Irregular or Not sure), cycle length (default 28 days), period length (default 3 days), and whether to turn on Smart Prediction. |
+| 5 | Home | The main app opens. |
+
+### 2. Main screens
+
+The app has three tabs in the bottom bar.
+
+**Calendar**
+- A month view that colours period, fertile and ovulation days.
+- Tap a day to see what was logged that day.
+- Double-tap a day to open the daily log for it.
+
+**Home**
+- A greeting and the current cycle day.
+- A phase ring showing where the user is in the cycle: Menstruation,
+  Follicular, Fertile, Ovulation or Luteal.
+- A countdown to the next period.
+- A **Start period** / **End period** button.
+
+**Profile**
+- Edit your name (first name, middle initial, last name).
+- Change cycle length and period length.
+- Notification settings.
+- Data & account: change email, change password, clear data, delete account.
+- Log out.
+
+### 3. Daily log
+
+For any past or current day, the user can record:
+
+| Category | Options |
+|----------|---------|
+| Physical symptoms | Cramps, Headaches, Nausea, Bloating, Breast Tenderness, Breakouts, Cravings, Stress, Constipation, Diarrhea |
+| Mood | Mood Swing, Irritable, Sad, Anxious, Confident, Happy, Impatient, Inspired |
+| Discharge | Clear/Transparent, Milky White, Gray, Bright Yellow, Green, Pink, Red, Brown, Watery |
+| Notes | Free text |
+
+### 4. Reasons & remedies
+
+After logging, the user can open two sheets for that day:
+
+- **Reasons** explain what may be causing each entry. Examples: hormonal
+  changes, ovulation, uterine muscle contractions, water retention, stress,
+  lack of sleep, caffeine intake, increased oil production. Unusual discharge
+  colours (such as gray, green or bright yellow) are flagged as a **possible
+  infection**.
+- **Remedies** suggest what to do about it. Examples: stay hydrated, use a
+  warm or cold compress, get enough rest, try light exercise or deep
+  breathing, limit caffeine, eat high-fiber foods, maintain proper hygiene.
+  Where it matters, the app recommends **consulting a doctor**.
+
+### 5. Reminders
+
+| Reminder | Default | When |
+|----------|---------|------|
+| Period approaching | On | 2 days before the predicted period, 9:00 AM |
+| Fertile window | Off | First fertile day and ovulation day, 9:00 AM |
+| Daily log | On | Every day, 8:00 PM |
+
+All three can be turned on or off under **Profile → Notifications**.
+
+## Privacy
+
+- Each user's data is stored under their own account in Cloud Firestore.
+- Changing an email requires verifying the new address first.
+- Users can clear their cycle data at any time from **Data & account**.
+- **Delete account** is a soft delete. The account can be recovered by
+  signing in again within 30 days.
+
+## Disclaimer
+
+Mēnesis is for personal tracking and general information only. Its
+predictions are estimates and must not be used as birth control. The reasons
+and remedies are not medical advice. If symptoms are severe, unusual or
+persistent, see a healthcare professional.
 
 ## Tech stack
 
